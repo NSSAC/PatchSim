@@ -11,6 +11,11 @@ Spatio-temporal optimization of seasonal vaccination using a metapopulation mode
 
 The description of the model and a software manual can be found inside the doc/ folder. 
 
+## Dependencies
+
+PatchSim is compatible with both Python 2 and 3. It requires numpy and pandas. 
+
+
 ## Testing
 
 Please use the different test*.py scripts to test the different functionalities of PatchSim. For more details on these features please check the software manual.
