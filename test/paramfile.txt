@@ -1,0 +1,2 @@
+id beta alpha gamma
+B 0.54 0.67 0.4

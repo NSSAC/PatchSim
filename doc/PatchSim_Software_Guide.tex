@@ -1,0 +1,342 @@
+\documentclass[10pt]{scrartcl}
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Common preamble
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PAGE
+\usepackage{fullpage} % uncomment this when changing to jour/conf style
+% FONTS
+\usepackage{lmodern} % enhanced version of computer modern
+\usepackage[T1]{fontenc} % for hyphenated characters and textsc in section title
+\usepackage{microtype} % some compression
+% MATH
+\usepackage{amssymb}
+\usepackage{listings}
+\usepackage{mathtools} % contains amsmath which comes with align
+\usepackage{amsthm} % newtheorem stuff
+\usepackage{bm} % for bold math (use $\boldsymbol{}$)
+% COLOR
+\usepackage[usenames,dvipsnames]{color}
+%%
+% REFERENCING
+\usepackage[square,sort&compress,numbers]{natbib} %sorts bibs when they are collectively cited
+%%
+% TABLES
+\usepackage{multirow}
+\usepackage{ctable} % provides toprule, bottomrule, midrule
+\usepackage{array} % new implementation of tabular & array with lots of enhancements
+%%
+% FIGURES
+\usepackage{graphicx}
+\usepackage{grffile} % to set right names of files
+%%
+% CAPTIONS
+\usepackage{caption}
+\usepackage{subcaption} % supersedes subfigure & subfloat. try using options
+%%
+% LISTS
+\usepackage{enumitem}
+% ALGO
+\usepackage[ruled,linesnumbered]{algorithm2e}
+%% comments & todo
+\newcommand{\comment}[1]{{\color{red}#1}}
+\usepackage[colorinlistoftodos]{todonotes}
+\newcommand{\TODO}[1]{\todo[inline,color=red!10,size=\small]{#1}}
+%% COMMANDS
+\newcommand{\comp}[1]{\overline{#1}}  %{\widetilde{#1}}
+\DeclareMathOperator{\Var}{Var}
+\DeclareMathOperator{\Cov}{Cov}
+\DeclareMathOperator{\bigo}{O}
+\DeclareMathOperator{\bigom}{\Omega}
+\DeclareMathOperator{\davg}{d_{avg}}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmim}{arg\,min}
+% Note: \deg is already defined
+\newcommand{\expect}{\mathbb{E}}
+%
+\newcommand{\ceil}[1]{\left\lceil #1 \right\rceil}
+\newcommand{\floor}[1]{\left\lfloor #1 \right\rfloor}
+%
+\newcommand{\reals}{\mathbb{R}}
+\newcommand{\field}{\mathbb{F}}
+\newcommand{\integers}{\mathbb{Z}}
+%
+\newtheorem{theorem}{Theorem}[]{\bfseries}{\itshape} 
+\newtheorem{lemma}[theorem]{Lemma}{\bfseries}{\itshape}
+\newtheorem{claim}[theorem]{Claim}{\bfseries}{\itshape}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition} % {\bfseries}{\itshape}
+\newtheorem{observation}[theorem]{Observation} % {\bfseries}
+\newtheorem{condition}[theorem]{Condition} % {\bfseries}{\itshape}
+\newtheorem{note}[theorem]{Note} % {\bfseries}{\itshape}
+% ROMAN NUMERALS
+\makeatletter
+\newcommand{\rmnum}[1]{\romannumeral #1}
+\newcommand{\Rmnum}[1]{\expandafter\@slowromancap\romannumeral #1@}
+\makeatother
+% TWO VERSIONS
+%% \usepackage{etoolbox}
+%% \newtoggle{withappendix}
+%% \toggletrue{withappendix} % comment this if you want journal version
+%% Usage: iftoggle{withappendix}{}{}
+%%
+%% math operator
+%% \DeclareMathOperator{\sgn}{sgn}
+% CODEBOX
+%% \usepackage[framemethod=tikz]{mdframed}
+%% \newmdenv[linecolor=black!10,innerlinewidth=0pt, roundcorner=4pt,innerleftmargin=6pt,
+%% font=\ttfamily,innerrightmargin=6pt,innertopmargin=6pt,
+%% innerbottommargin=6pt,backgroundcolor=black!10]{codeblock}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% preamble ends
+%% from now on, draft specific
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% \RequirePackage[l2tabu, orthodox]{nag}
+%%
+\title{PatchSim Software Guide}
+\author{Srini Venkatramanan\footnote{Email:vsriniv@bi.vt.edu}}
+\begin{document}
+\maketitle
+
+\section{Introduction}
+Two common modeling frameworks for simulating epidemic dynamics are: ordinary 
+differential equations (ODEs) and agent-based models (ABMs). While the former 
+assumes a homogeneous mixing among the entire population, the latter uses a 
+network to model the heterogeneous mixing among individuals. Though both 
+methods have their own advantages, there is often a need for an approach with 
+an intermediate level of complexity. Metapopulation models bridge the gap 
+between ODEs and ABMs, since they model 
+homogeneously mixing subpopulations connected by a network to model force of 
+infection between subpopulations. See accompanying Model Description document 
+for the underlying mathematical model.
+
+PatchSim is a software code that allows for 
+modeling SEIR dynamics across subpopulations (aka \emph{patches}), connected by 
+a commuting-type flow network (aka \emph{travel matrix}). It has additional 
+features such as vaccinations, stochastic vs deterministic mode, patch-specific 
+parameterization, check-pointing. etc.
+
+\section{User Guide}
+\label{sec:user-guide}
+The most recent version of PatchSim is maintained at 
+\verb|https://ndsslgit.vbi.vt.edu/ndssl-software/PatchSim|. To use it, clone 
+the directory, and run \verb|python test_det.py| inside the \verb|test/| 
+folder. It should return no errors, and you should see two new files inside 
+\verb|test/| namely, \verb|test_det.out| and \verb|test_det.log| \footnote{If 
+you encounter any errors, contact vsriniv@bi.vt.edu or file a Git issue}.
+
+There are two basic test configurations (deterministic and stochastic) in the 
+test folder. The deterministic test configuration (\verb|test/cfg_test_det|) 
+looks as follows:
+\begin{small}
+\begin{center}
+\begin{lstlisting}
+PatchFile=test_pop.txt
+NetworkFile=test_net.txt
+NetworkType=Static
+
+ExposureRate=0.65
+InfectionRate=0.67
+RecoveryRate=0.4
+ScalingFactor=1
+
+SeedFile=test_seed.txt
+VaxFile=test_vax.txt
+VaxDelay=4
+VaxEfficacy=0.5
+
+RandomSeed=12345
+StartDate=1
+Duration=100
+
+OutputFile=test_det.out
+OutputFormat=Whole
+LogFile=test_det.log
+\end{lstlisting}
+\end{center}
+\end{small}
+
+There are five distinct sections in the configuration file (separated by empty 
+lines for ease of comprehension). We will now take a closer look at each of the 
+keywords and associated input files. 
+
+\textit{Note:} All file paths are relative to the main code (in this case 
+\verb|test/test.py|). All input files below are \emph{space 
+separated} unless otherwise specified. No spaces allowed on either side of the 
+`=' sign in the configuration file.
+
+\subsection{Patch \& Network Info}
+\begin{itemize}
+	\item \verb|PatchFile| Contains patch population sizes in the following 
+	format for each line:\\
+	\verb|<patch_id> <population_size>|
+	
+	\item \verb|NetworkFile| Contains the travel matrix in the following 
+	format for each line:\\
+	\verb|<patch_id_i> <patch_id_j> <time_index> <Theta_i,j>|
+	
+	where \verb|<patch_id_i>| and \verb|<patch_id_j>| must be present in the 
+	 \verb|PatchFile|. \verb|<time_index>| will take different values 
+	depending on the \verb|NetworkType| described below. Note that 	
+	PatchSim expects that $\Theta$ as described in the \verb|NetworkFile|
+	obeys row stochasticity, failing which it may lead to errors or incorrect 
+	outputs.
+	
+	\item \verb|NetworkType|: PatchSim currently accepts three different 
+	NetworkTypes: \verb|Static|, \verb|Monthly|, \verb|Weekly|. Depending on 
+	the NetworkType, the \verb|<time_index>| in NetworkFile takes the following 
+	values.
+	\begin{itemize}
+		\item \verb|Static|: \verb|<time_index>| is always $0$.
+		\item \verb|Monthly|: \verb|<time_index>| takes all values from 
+		$[0,11]$ corresponding to month index (0 = Jan). 
+		\item \verb|Weekly|: \verb|<time_index>| takes all values from 
+		$[0,52]$ corresponding to weeks (0 = Jan 1-7).
+	\end{itemize}  
+\end{itemize}
+
+All three keywords in this section are mandatory.
+
+
+\subsection{Disease Parameters}
+\begin{itemize}
+	\item Disease parameters \verb|ExposureRate|, \verb|InfectionRate| and 
+	\verb|RecoveryRate| respectively feed into $\beta$, $\alpha$ and $\gamma$ 
+	respectively of the dynamics. All the three keywords are mandatory.
+	
+	\item \verb|ScalingFactor| is used to scale the daily infections before 
+	printing to the output file. This can be used to represent any of the 
+	following: (a) Reported infections, (b) Hospitalizations, (c) Emergency 
+	department visits, (d) Deaths. This is an optional parameter, whose default 
+	value is set as $1$.
+\end{itemize}
+
+\subsection{Seeding \& Vaccination}
+\begin{itemize}
+	\item \verb|SeedFile| Contains the (mandatory) seeding schedule in the 
+	following format for each line:\\
+	\verb|<day> <patch_id> <seed_cases>|
+	
+	\item \verb|VaxFile| Contains the (optional) vaccination schedule in the 
+	following format for each line:\\
+	\verb|<day> <patch_id> <vaccinations>|
+	
+	\item \verb|VaxDelay| and \verb|VaxEfficacy| represent the vaccine delay 
+	(in days) and vaccine efficacy (as a probability). Both of these are 
+	optional (default vaccine delay is $0$, default vaccine efficacy is $1$). 
+	
+\end{itemize}
+
+\subsection{Simulation Time/Style}
+
+\begin{itemize}
+	\item \verb|RandomSeed| is an optional argument, which 
+	when set automatically triggers stochastic mode of operation. It takes an 
+	integer value. (Run \verb|python test/test_stoc.py| to test this feature.)
+	
+	\item \verb|StartDate| takes value from $[0,365]$ (0 = Jan 1) and denotes 
+	the starting date (for the travel matrix)
+	
+	\item \verb|Duration| is the simulation duration in days (positive integer)
+\end{itemize}
+
+Both keywords are mandatory (although \verb|StartDate| is not used if 
+\verb|NetworkType| is \verb|Static|). 
+
+\subsection{Outputs}
+\begin{itemize}
+	\item \verb|OutputFile| is produced at the end of simulation. It contains 
+	the epicurves of each patch in the following format for each line:\\
+	\verb|<patch_id> <cases_0> <cases_1> ... <cases_T> |
+	where $T$ is the duration of the epidemic.
+	\item \verb|OutputFormat| (optional) specifies if PatchSim must produce 
+	integer (\verb|Whole|) or floating point (\verb|Fractional|) values in 
+	output time series. Default value is \verb|Whole|, which will produce 
+	integer outputs (floor).
+	\item \verb|LogFile| (optional) file for basic logging messages with 
+	timestamp. 
+\end{itemize}
+
+\section{Advanced Features}
+In addition the above listed attributes, PatchSim supports two additional 
+advanced features described below:
+
+\begin{itemize}
+	\item \textbf{Checkpoints}: PatchSim allows you to load and save the state 
+	array (values of S,E,I,R and V states for all patches). User can run a 
+	simulation till day $T$, save state, and restart new simulation by loading 
+	the saved state. This is accomplished by the following entries in the 
+	config file:
+	
+	\begin{center}
+		\begin{lstlisting}
+		LoadState=True
+		LoadFile=checkpoint1.npy
+		SaveState=True
+		SaveFile=checkpoint2.npy
+		\end{lstlisting}
+	\end{center}
+	
+	The above code, loads state from \verb|checkpoint1.npy|, runs the 
+	simulation, and then saves final state to \verb|checkpoint2.npy|. When not 
+	being used, \verb|LoadState| and \verb|SaveState| must be set to 
+	\verb|False|.
+	(Run \verb|python test/test_stopstart.py| to test this feature.)
+	
+	\item \textbf{Patch-specific parameters}: The disease parameters 
+	\verb|ExposureRate|, \verb|InfectionRate| and \verb|RecoveryRate| are 
+	usually listed in the Config file. If the user intends to use heterogeneous 
+	parameters for the patches, then one can replace the above three lines with 
+	a \verb|ParamFile| attribute, pointing to a file.
+	
+	The file is space separated and contains a header line 
+	\verb|id beta alpha gamma| followed by patch specific parameters for each 
+	patch. Note that all patch ids present in the patch populations file must 
+	be listed. Also, \verb|beta, alpha, gamma| correspond to 
+	\verb|ExposureRate, InfectionRate, RecoveryRate| respectively.
+	(Run \verb|python test/test_paramfile.py| to test this feature.)
+	
+\end{itemize}
+
+
+\section{Limitations}
+PatchSim is under constant development. The following are some of its current 
+limitations, which we are hoping to address in subsequent releases.
+
+\begin{itemize}
+	\item \textbf{Flow matrix}: The current flow matrix interpretation is best 
+	suited for commuting type datasets, and assumes the individual spends 
+	\textbf{entire day} at the work patch. If you want to restrict to working 
+	hours, the travel matrix needs to be appropriately scaled.
+	
+	For other types of flows (air travel, non-work activity trips), one needs 
+	to explicitly process the travel matrix accounting for stay duration. 
+	Further, population migration cannot be handled by this model. 
+
+	\item \textbf{Disease Model}: Currently PatchSim supports only SEIR disease 
+	model with vaccination. We hope to incorporate other disease models, 
+	including vector-borne models soon.
+	
+\end{itemize}
+
+Feedbacks are welcome. Any feature requests or bug reports can be filed 
+filed as Git issues at: 
+\verb|https://ndsslgit.vbi.vt.edu/ndssl-software/PatchSim|.
+
+\section{Acknowledgments}
+PatchSim development has been guided by inputs from the following folks at 
+NDSSL (in alphabetical order): Jiangzhuo Chen, Arindam Fadikar, Sandeep Gupta, 
+Bryan Lewis, Madhav Marathe, Anil Vullikanti.
+
+\section*{Version History}
+\begin{itemize}
+	\item \textbf{23 Nov, 2017}: First version released.
+	\item \textbf{27 Nov, 2017}: Ensured python3 compatibility.
+	\item \textbf{21 Feb, 2018}: Checkpoints feature added.
+	\item \textbf{23 Feb, 2018}: Patch-specific parameters allowed. 
+	\item \textbf{08 Aug, 2018}: Stochastic mode (through RandomSeed) added.
+\end{itemize}
+
+\end{document}
+
+
