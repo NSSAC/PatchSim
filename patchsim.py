@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-''' PatchSim v1.0
-Created and maintained by: Srini (vsriniv@vt.edu)
-Date last modified: 23 Nov 2017
+''' PatchSim v1.1
+Created and maintained by: Srini (srini@virginia.edu)
+Date last modified: 13 Feb 2019
 '''
 import numpy as np
 import pandas as pd
@@ -82,7 +82,6 @@ def load_seed(configs,params,patch_df):
 
 def load_vax(configs,params,patch_df):
     try:
-        vax_delay = int(configs['VaxDelay'])
         vax_df = pd.read_csv(configs['VaxFile'],delimiter=' ',
                     names=['Day','Id','Count'],dtype={'Id':str,'Count':int})
     except:
@@ -90,6 +89,11 @@ def load_vax(configs,params,patch_df):
         empty_vax.fill(0.0)
         return empty_vax
 
+    try:
+        vax_delay = int(configs['VaxDelay'])
+    except:
+        vax_delay = 0
+        
     patch_idx = dict(zip(patch_df.id.values,range(len(patch_df))))
     vax_df['Id_int'] = vax_df.Id.apply(lambda x: patch_idx[x])
     vax_df['Delayed_Day'] = vax_df['Day'] + vax_delay
