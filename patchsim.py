@@ -67,7 +67,7 @@ def load_seed(configs,params,patch_df):
         seed_df = pd.read_csv(configs['SeedFile'],delimiter=' ',names=['Day','Id','Count'],dtype={'Id':str})
     except:
         empty_seed = np.ndarray((params['T'],len(patch_df)))
-        empty_seed.fill(0)
+        empty_seed.fill(0.0)
 
         logger.info('Continuing without seeding')
         return empty_seed
@@ -87,7 +87,7 @@ def load_vax(configs,params,patch_df):
                     names=['Day','Id','Count'],dtype={'Id':str,'Count':int})
     except:
         empty_vax = np.ndarray((params['T'],len(patch_df)))
-        empty_vax.fill(0)
+        empty_vax.fill(0.0)
         return empty_vax
 
     patch_idx = dict(zip(patch_df.id.values,range(len(patch_df))))
@@ -140,7 +140,7 @@ def patchsim_step(State_Array,patch_df,params,theta,seeds,vaxs,t,stoch):
     if stoch:
         ## vaccination for day t
         max_SV = np.minimum(vaxs[t],S[t])
-        actual_SV = np.random.binomial(max_SV,params['vaxeff'])
+        actual_SV = np.random.binomial(max_SV.astype(int),params['vaxeff'])
         S[t] = S[t] - actual_SV
         V[t] = V[t] + actual_SV
 
