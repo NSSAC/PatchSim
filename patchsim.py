@@ -35,9 +35,9 @@ def load_params(configs,patch_df):
         logger.info('Loaded disease parameters from Config')
 
     except:
-        params['beta'] = np.repeat(0,len(patch_df))
-        params['alpha'] = np.repeat(0,len(patch_df))
-        params['gamma'] = np.repeat(0,len(patch_df))
+        params['beta'] = np.repeat(0.0,len(patch_df))
+        params['alpha'] = np.repeat(0.0,len(patch_df))
+        params['gamma'] = np.repeat(0.0,len(patch_df))
         logger.info('No parameter values in Config. Setting default to 0.')
 
     try:
@@ -58,7 +58,7 @@ def load_params(configs,patch_df):
     try:
         params['vaxeff'] = np.repeat(float(configs['VaxEfficacy']),len(patch_df))
     except:
-        params['vaxeff'] = np.repeat(1,len(patch_df))
+        params['vaxeff'] = np.repeat(1.0,len(patch_df))
 
     return params
 
