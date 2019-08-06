@@ -14,7 +14,7 @@ VaxDelay=4
 VaxEfficacy=0.5
 
 StartDate=1
-Duration=100
+Duration=10
 
 LoadState=False
 SaveState=False

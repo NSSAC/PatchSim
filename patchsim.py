@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-''' PatchSim v1.1
+''' PatchSim v1.2
 Created and maintained by: Srini (srini@virginia.edu)
-Date last modified: 13 Feb 2019
+Date last modified: 6 Aug 2019
 '''
 import numpy as np
 import pandas as pd
@@ -29,36 +29,38 @@ def load_params(configs,patch_df):
     params = {}
     params['T'] = int(configs['Duration'])
     try:
-        params['beta'] = np.repeat(float(configs['ExposureRate']),len(patch_df))
-        params['alpha'] = np.repeat(float(configs['InfectionRate']),len(patch_df))
-        params['gamma'] = np.repeat(float(configs['RecoveryRate']),len(patch_df))
+        #params['beta'] = np.repeat(float(configs['ExposureRate']),len(patch_df))
+        params['beta'] = np.ones([len(patch_df),params['T']])*float(configs['ExposureRate'])
+        params['alpha'] = float(configs['InfectionRate'])
+        params['gamma'] = float(configs['RecoveryRate'])
         logger.info('Loaded disease parameters from Config')
 
     except:
-        params['beta'] = np.repeat(0.0,len(patch_df))
+        params['beta'] = np.zeros([len(patch_df),params['T']])
         params['alpha'] = np.repeat(0.0,len(patch_df))
         params['gamma'] = np.repeat(0.0,len(patch_df))
         logger.info('No parameter values in Config. Setting default to 0.')
 
     try:
-        param_df = pd.read_csv(configs['ParamFile'], delimiter=' ',dtype={'id':str})
+        param_df = pd.read_csv(configs['ParamFile'], delimiter=' ',dtype={'id':str},index_col=0,header=None).fillna(method='ffill',axis=1)
         patch_idx = dict(zip(patch_df.id.values,range(len(patch_df))))
-        param_df['Id_int'] = param_df.id.apply(lambda x: patch_idx[x])
+        print(patch_idx)
+        param_df['Id_int'] = param_df.index.map(patch_idx)
+        
+        print(param_df)
+       
         param_df.sort_values('Id_int',inplace=True)
-
-        params['beta'][param_df.Id_int.values] = param_df.beta.values
-        params['alpha'][param_df.Id_int.values] = param_df.alpha.values
-        params['gamma'][param_df.Id_int.values] = param_df.gamma.values
-
+        params['beta'][param_df.Id_int.values,:] = param_df[param_df.columns.difference(['Id_int'])].values
+        
         logger.info('Loaded disease parameters from ParamFile')
     except:
         logger.info('No ParamFile loaded')
         pass
 
     try:
-        params['vaxeff'] = np.repeat(float(configs['VaxEfficacy']),len(patch_df))
+        params['vaxeff'] = float(configs['VaxEfficacy'])
     except:
-        params['vaxeff'] = np.repeat(1.0,len(patch_df))
+        params['vaxeff'] = 1.0
 
     return params
 
@@ -93,7 +95,7 @@ def load_vax(configs,params,patch_df):
         vax_delay = int(configs['VaxDelay'])
     except:
         vax_delay = 0
-        
+
     patch_idx = dict(zip(patch_df.id.values,range(len(patch_df))))
     vax_df['Id_int'] = vax_df.Id.apply(lambda x: patch_idx[x])
     vax_df['Delayed_Day'] = vax_df['Day'] + vax_delay
@@ -159,7 +161,7 @@ def patchsim_step(State_Array,patch_df,params,theta,seeds,vaxs,t,stoch):
 
         N_eff = N_edge.sum(axis=0)
         I_eff = I_edge.sum(axis=0)
-        beta_j_eff = np.nan_to_num(params['beta']*(I_eff/N_eff))
+        beta_j_eff = np.nan_to_num(params['beta'][:,t]*(I_eff/N_eff))
 
         actual_SE = np.concatenate([np.random.binomial(S_edge[:,x],beta_j_eff[x]).reshape(len(N),1) for x in range(len(N))],axis=1).sum(axis=1)
         actual_EI = np.random.binomial(E[t],params['alpha'])
@@ -181,7 +183,7 @@ def patchsim_step(State_Array,patch_df,params,theta,seeds,vaxs,t,stoch):
         N = patch_df.pops.values
         N_eff = theta.T.dot(N)
         I_eff = theta.T.dot(I[t])
-        beta_j_eff = np.nan_to_num(np.multiply(np.divide(I_eff,N_eff),params['beta']))
+        beta_j_eff = np.nan_to_num(np.multiply(np.divide(I_eff,N_eff),params['beta'][:,t]))
         inf_force = theta.dot(beta_j_eff)
 
         ## New exposures during day t
