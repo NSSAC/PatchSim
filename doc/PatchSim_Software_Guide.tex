@@ -23,7 +23,7 @@
 %%
 % TABLES
 \usepackage{multirow}
-\usepackage{ctable} % provides toprule, bottomrule, midrule
+%\usepackage{ctable} % provides toprule, bottomrule, midrule
 \usepackage{array} % new implementation of tabular & array with lots of enhancements
 %%
 % FIGURES
@@ -94,7 +94,7 @@
 %% \RequirePackage[l2tabu, orthodox]{nag}
 %%
 \title{PatchSim Software Guide}
-\author{Srini Venkatramanan\footnote{Email:vsriniv@bi.vt.edu}}
+\author{Srini Venkatramanan\footnote{Email:srini@virginia.edu}}
 \begin{document}
 \maketitle
 
@@ -119,11 +119,11 @@ parameterization, check-pointing. etc.
 \section{User Guide}
 \label{sec:user-guide}
 The most recent version of PatchSim is maintained at 
-\verb|https://ndsslgit.vbi.vt.edu/ndssl-software/PatchSim|. To use it, clone 
+\verb|https://github.com/srinivvenkat/PatchSim|. To use it, clone 
 the directory, and run \verb|python test_det.py| inside the \verb|test/| 
 folder. It should return no errors, and you should see two new files inside 
 \verb|test/| namely, \verb|test_det.out| and \verb|test_det.log| \footnote{If 
-you encounter any errors, contact vsriniv@bi.vt.edu or file a Git issue}.
+you encounter any errors, contact srini@virginia.edu or file a Git issue}.
 
 There are two basic test configurations (deterministic and stochastic) in the 
 test folder. The deterministic test configuration (\verb|test/cfg_test_det|) 
@@ -283,21 +283,16 @@ advanced features described below:
 	\verb|False|.
 	(Run \verb|python test/test_stopstart.py| to test this feature.)
 	
-	\item \textbf{Patch-specific parameters}: The disease parameters 
+	\item \textbf{Spatio-temporal parameters}: The disease parameters 
 	\verb|ExposureRate|, \verb|InfectionRate| and \verb|RecoveryRate| are 
-	usually listed in the Config file. If the user intends to use heterogeneous 
-	parameters for the patches, then one can replace the above three lines with 
+	usually listed in the Config file. If the users wishes to use heterogeneous values of \verb|ExposureRate|
+	for specific patches, or have it vary with time,  then one can includes
 	a \verb|ParamFile| attribute, pointing to a file.
 	
-	The file is space separated and contains a header line 
-	\verb|id beta alpha gamma| followed by patch specific parameters for each 
-	patch. Note that all patch ids present in the patch populations file must 
-	be listed. Also, \verb|beta, alpha, gamma| correspond to 
-	\verb|ExposureRate, InfectionRate, RecoveryRate| respectively.
-	(Run \verb|python test/test_paramfile.py| to test this feature.)
+	The file is space separated without a header line, with each line containing a patch id followed by either a single value (to be used for the entire simulation) or a list of $T$ values (where $T$ is the Duration of the simulation as specified in the Config file). Note that all patch ids present in the patch populations file must 
+	be listed. (Run \verb|python test/test_paramfile.py| to test this feature and \verb|test/paramfile.txt| provides an example paramfile.)
 	
 \end{itemize}
-
 
 \section{Limitations}
 PatchSim is under constant development. The following are some of its current 
@@ -319,14 +314,12 @@ limitations, which we are hoping to address in subsequent releases.
 	
 \end{itemize}
 
-Feedbacks are welcome. Any feature requests or bug reports can be filed 
-filed as Git issues at: 
-\verb|https://ndsslgit.vbi.vt.edu/ndssl-software/PatchSim|.
+Feedbacks are welcome. Any feature requests or bug reports can be filed filed as Git issues at: 
+\verb|https://github.com/srinivvenkat/PatchSim|.
 
 \section{Acknowledgments}
-PatchSim development has been guided by inputs from the following folks at 
-NDSSL (in alphabetical order): Jiangzhuo Chen, Arindam Fadikar, Sandeep Gupta, 
-Bryan Lewis, Madhav Marathe, Anil Vullikanti.
+PatchSim development has been guided by inputs from the following folks at NSSAC/NDSSL (in alphabetical order of last name): 
+Parantapa Bhattacharya, Jiangzhuo Chen, Arindam Fadikar, Sandeep Gupta, Bryan Lewis, Madhav Marathe, Anil Vullikanti.
 
 \section*{Version History}
 \begin{itemize}
@@ -335,6 +328,8 @@ Bryan Lewis, Madhav Marathe, Anil Vullikanti.
 	\item \textbf{21 Feb, 2018}: Checkpoints feature added.
 	\item \textbf{23 Feb, 2018}: Patch-specific parameters allowed. 
 	\item \textbf{08 Aug, 2018}: Stochastic mode (through RandomSeed) added.
+	\item \textbf{06 Aug, 2019}: ParamFile now permits time-varying \verb|ExposureRate|. \verb|InfectionRate| and \verb|RecoveryRate| 
+	cannot vary across patches/time. 
 \end{itemize}
 
 \end{document}
