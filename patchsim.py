@@ -44,14 +44,10 @@ def load_params(configs,patch_df):
     try:
         param_df = pd.read_csv(configs['ParamFile'], delimiter=' ',dtype={'id':str},index_col=0,header=None).fillna(method='ffill',axis=1)
         patch_idx = dict(zip(patch_df.id.values,range(len(patch_df))))
-        print(patch_idx)
         param_df['Id_int'] = param_df.index.map(patch_idx)
-        
-        print(param_df)
-       
         param_df.sort_values('Id_int',inplace=True)
         params['beta'][param_df.Id_int.values,:] = param_df[param_df.columns.difference(['Id_int'])].values
-        
+
         logger.info('Loaded disease parameters from ParamFile')
     except:
         logger.info('No ParamFile loaded')
