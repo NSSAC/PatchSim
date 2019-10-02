@@ -42,7 +42,7 @@ def load_params(configs,patch_df):
         logger.info('No parameter values in Config. Setting default to 0.')
 
     try:
-        param_df = pd.read_csv(configs['ParamFile'], delimiter=' ',dtype={'id':str},index_col=0,header=None).fillna(method='ffill',axis=1)
+        param_df = pd.read_csv(configs['ParamFile'], delimiter=' ',dtype={0:str},header=None).set_index(0).fillna(method='ffill',axis=1)
         patch_idx = dict(zip(patch_df.id.values,range(len(patch_df))))
         param_df['Id_int'] = param_df.index.map(patch_idx)
         param_df.sort_values('Id_int',inplace=True)
