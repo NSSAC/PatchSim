@@ -221,7 +221,6 @@ def epicurves_todf(configs,patch_df,State_Array):
         epicurve = [int(x*scaling) if rounding_bool else (x*scaling) for x in new_exposed]    
         out_df.loc[patch_df.id.values[i]] = epicurve
     
-    out_df.index = out_df.index.astype(str)
     return out_df
 
     
