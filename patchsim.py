@@ -190,8 +190,40 @@ def patchsim_step(State_Array,patch_df,params,theta,seeds,vaxs,t,stoch):
         I[t+1] = np.multiply(params['alpha'],E[t]) + np.multiply(1 - params['gamma'],I[t])
         R[t+1] = R[t] + np.multiply(params['gamma'],I[t])
         V[t+1] = V[t]
+        
+        
+def epicurves_todf(configs,patch_df,State_Array):
+    S,E,I,R,V = State_Array ## Aliases for the State Array
 
+    try:
+        scaling = float(configs['ScalingFactor'])
+    except:
+        scaling = 1
 
+    rounding_bool = True
+    try:
+        if configs['OutputFormat'] == 'Whole':
+            rounding_bool = True
+        if configs['OutputFormat'] == 'Fractional':
+            rounding_bool = False
+    except:
+        pass
+
+    out_df = pd.DataFrame(columns = range(int(configs['Duration']) + 1))
+    
+    for i in range(len(patch_df)):
+        net_sus = S[:,i]+V[:,i]
+        if configs['LoadState']=='False':
+            net_sus = np.lib.pad(net_sus,(1,0),'constant',constant_values=(patch_df.pops.values[i],))
+        new_exposed = np.abs(np.diff(net_sus))
+
+        
+        epicurve = [int(x*scaling) if rounding_bool else (x*scaling) for x in new_exposed]    
+        out_df.loc[patch_df.id.values[i]] = epicurve
+    
+    return out_df
+
+    
 def write_epicurves(configs,patch_df,State_Array):
     S,E,I,R,V = State_Array ## Aliases for the State Array
     f = open(configs['OutputFile'],'w')
@@ -224,7 +256,7 @@ def write_epicurves(configs,patch_df,State_Array):
         f.write('{} {}\n'.format(patch_df.id.values[i], epicurve))
     f.close()
 
-def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=None,vaxs=None,write_epi=False):
+def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=None,vaxs=None,return_epi=False,write_epi=False):
     try:
         handler = logging.FileHandler(configs['LogFile'], mode='w')
         for hdlr in logger.handlers[:]:  # remove the existing file handlers
@@ -297,18 +329,25 @@ def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=No
         if configs['NetworkType']=='Monthly':
             patchsim_step(State_Array,patch_df,params,Theta[curr_month-1],seeds,vaxs,t,stoch)
 
-    logger.info('Simulation complete. Writing outputs...')
-
-    if write_epi==False:
-        return int(sum(R[-1,:]))
-    else:
-        write_epicurves(configs,patch_df,State_Array)
-
     if configs['SaveState'] == 'True':
         logger.info('Saving StateArray to File')
         np.save(configs['SaveFile'],State_Array[:,-1,:])
-
-
+        
     elapsed = time.time() - start
-    logger.info('Done! Time elapsed: {} seconds.'.format(elapsed))
+    logger.info('Simulation complete. Time elapsed: {} seconds.'.format(elapsed))
     logger.removeHandler(handler)
+    
+    if (write_epi==False)&(return_epi==False):
+        return int(sum(R[-1,:]))
+    else:
+        if (write_epi==True):
+            write_epicurves(configs,patch_df,State_Array)
+            
+        if (return_epi==True):
+            return epicurves_todf(configs,patch_df,State_Array)
+
+
+
+
+    
+    
