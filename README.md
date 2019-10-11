@@ -1,8 +1,9 @@
 # PatchSim
 Code for simulating the metapopulation SEIR model. Sample network for US national simulation included. 
 
-A preliminary description of this model is provided in 
-https://ieeexplore.ieee.org/document/8031141/
+A preliminary description of this model appeared in IEEE ICHI 2017: https://ieeexplore.ieee.org/document/8031141/
+
+Journal version: https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1007111
 
 Cite as: Venkatramanan S, Chen J, Fadikar A, Gupta S, Higdon D, Lewis B, Marathe M, Mortveit H, Vullikanti A. Optimizing spatial allocation of seasonal influenza vaccine under temporal constraints. PLoS computational biology. 2019 Sep 16;15(9):e1007111.
 
