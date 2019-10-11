@@ -4,10 +4,9 @@ Code for simulating the metapopulation SEIR model. Sample network for US nationa
 A preliminary description of this model is provided in 
 https://ieeexplore.ieee.org/document/8031141/
 
-Cite as: Venkatramanan, S., Chen, J., Gupta, S., Lewis, B., Marathe, M., Mortveit, H. and Vullikanti, A., 2017, August. 
-Spatio-temporal optimization of seasonal vaccination using a metapopulation model of influenza. In Healthcare Informatics (ICHI), 2017 IEEE International Conference on (pp. 134-143). IEEE.
+Cite as: Venkatramanan S, Chen J, Fadikar A, Gupta S, Higdon D, Lewis B, Marathe M, Mortveit H, Vullikanti A. Optimizing spatial allocation of seasonal influenza vaccine under temporal constraints. PLoS computational biology. 2019 Sep 16;15(9):e1007111.
 
-Journal version of this article is under review (link to pre-print coming soon). 
+
 
 
 ## Documentation
