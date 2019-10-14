@@ -27,3 +27,6 @@ Please use the different test*.py scripts to test the different functionalities 
 ## US National simulation
 
 To test the US national simulation, extract the zip file test/US_county.zip and run "python test_det_US.py" from inside test/ folder. 
+
+# Fork
+This fork is under development to integrate features from EpiGrind to describe MPP exposures by mean person-hours of exposure daily, allowing for density-dependent transmission rates.
