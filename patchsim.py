@@ -131,7 +131,7 @@ def load_Theta(configs, params, patch_df):
     logger.info('Loaded temporal travel matrix')
     return Theta
 
-def patchsim_step(State_Array,patch_df,params,theta,seeds,vaxs,t,stoch):
+def patchsim_step(State_Array,patch_df,params,theta,seeds,vaxs,t,stoch,model='PatchSim'):
     S,E,I,R,V = State_Array ## Aliases for the State Array
 
     ## seeding for day t (seeding implies S->I)
@@ -176,21 +176,35 @@ def patchsim_step(State_Array,patch_df,params,theta,seeds,vaxs,t,stoch):
         V[t] = V[t] + actual_vax
 
         ## Computing force of infection
+        
         N = patch_df.pops.values
-        N_eff = theta.T.dot(N)
-        I_eff = theta.T.dot(I[t])
-        beta_j_eff = np.nan_to_num(np.multiply(np.divide(I_eff,N_eff),params['beta'][:,t]))
-        inf_force = theta.dot(beta_j_eff)
-
-        ## New exposures during day t
-        new_inf = np.multiply(inf_force,S[t])
-
+        
+        if model == 'patchsim':
+            N_eff = theta.T.dot(N)
+            I_eff = theta.T.dot(I[t])
+            beta_j_eff = np.nan_to_num(np.multiply(np.divide(I_eff,N_eff),params['beta'][:,t]))
+            inf_force = theta.dot(beta_j_eff)
+            ## New exposures during day t
+            new_inf = np.multiply(inf_force,S[t])
+        
+        elif model == 'epigrind':
+            new_inf = []
+            for patch_i,[patch_id,patch_pops] in patch_df.iterrows():
+                bySource = []
+                for exp in exps[key]:
+                    (source,contactRate) = exp
+                    pInf = I[t][source]/patch_pops
+                    force = contactRate*infectivity*pInf
+                    bySource.append(1-min(force,1))
+                    ## New exposures during day t
+                    new_inf.append(S[t][patch_i]*(1-np.prod(bySource))
+            
         S[t+1] = S[t] - new_inf
         E[t+1] = new_inf + np.multiply(1 - params['alpha'],E[t])
         I[t+1] = np.multiply(params['alpha'],E[t]) + np.multiply(1 - params['gamma'],I[t])
         R[t+1] = R[t] + np.multiply(params['gamma'],I[t])
         V[t+1] = V[t]
-        
+
         
 def epicurves_todf(configs,patch_df,State_Array):
     S,E,I,R,V = State_Array ## Aliases for the State Array
@@ -298,6 +312,11 @@ def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=No
     else:
         stoch = False
         logger.info('No RandomSeed found. Running in deterministic mode...')
+        
+    if 'Model' in configs.keys():
+        model = configs['model'].lower()
+    else:
+        model = 'patchsim'
 
     dim = 5 ##Number of states (SEIRV)
     if stoch:
@@ -321,13 +340,13 @@ def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=No
         curr_month = int(curr_date.strftime("%m"))
 
         if configs['NetworkType']=='Static':
-            patchsim_step(State_Array,patch_df,params,Theta[0],seeds,vaxs,t,stoch)
+            patchsim_step(State_Array,patch_df,params,Theta[0],seeds,vaxs,t,stoch,model)
 
         if configs['NetworkType']=='Weekly':
-            patchsim_step(State_Array,patch_df,params,Theta[curr_week-1],seeds,vaxs,t,stoch)
+            patchsim_step(State_Array,patch_df,params,Theta[curr_week-1],seeds,vaxs,t,stoch,model)
 
         if configs['NetworkType']=='Monthly':
-            patchsim_step(State_Array,patch_df,params,Theta[curr_month-1],seeds,vaxs,t,stoch)
+            patchsim_step(State_Array,patch_df,params,Theta[curr_month-1],seeds,vaxs,t,stoch,model)
 
     if configs['SaveState'] == 'True':
         logger.info('Saving StateArray to File')
