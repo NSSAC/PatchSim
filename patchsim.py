@@ -57,6 +57,11 @@ def load_params(configs,patch_df):
         params['vaxeff'] = float(configs['VaxEfficacy'])
     except:
         params['vaxeff'] = 1.0
+        
+    if 'Model' in configs.keys():
+        params['model'] = configs['Model'].lower()
+    else:
+        params['model'] = 'patchsim'
 
     return params
 
@@ -103,35 +108,49 @@ def load_vax(configs,params,patch_df):
 def load_Theta(configs, params, patch_df):
     theta_df = pd.read_csv(configs['NetworkFile'],names=['src_Id','dest_Id','theta_index','flow'],
                             delimiter=' ',dtype={'src_Id':str, 'dest_Id':str})
-
-    if (configs['NetworkType']=='Static') & (len(theta_df.theta_index.unique())!=1):
-        logger.info("Theta indices mismatch. Ensure NetworkType=Static.")
-    if (configs['NetworkType']=='Weekly') & (len(theta_df.theta_index.unique())!=53):
-        logger.info("Theta indices mismatch. Ensure NetworkType=Weekly.")
-    if (configs['NetworkType']=='Monthly') & (len(theta_df.theta_index.unique())!=12):
-        logger.info("Theta indices mismatch. Ensure NetworkType=Monthly.")
-
-
     patch_idx = dict(zip(patch_df.id.values,range(len(patch_df))))
-    try:
-        theta_df['src_Id_int'] = theta_df.src_Id.apply(lambda x: patch_idx[x])
-        theta_df['dest_Id_int'] = theta_df.dest_Id.apply(lambda x: patch_idx[x])
-    except:
-        logger.info("Ignoring flow entries for missing patches. Ensure all patches listed in PatchFile.")
+    
+    if params['model'] == 'patchsim':
+        logger.info('Loading %s via patch network loader' % configs['NetworkFile'])
+        if (configs['NetworkType']=='Static') & (len(theta_df.theta_index.unique())!=1):
+            logger.info("Theta indices mismatch. Ensure NetworkType=Static.")
+        if (configs['NetworkType']=='Weekly') & (len(theta_df.theta_index.unique())!=53):
+            logger.info("Theta indices mismatch. Ensure NetworkType=Weekly.")
+        if (configs['NetworkType']=='Monthly') & (len(theta_df.theta_index.unique())!=12):
+            logger.info("Theta indices mismatch. Ensure NetworkType=Monthly.")
 
-    Theta_indices = theta_df.theta_index.unique()
-    Theta = np.ndarray((len(Theta_indices),len(patch_df),len(patch_df)))
+        try:
+            theta_df['src_Id_int'] = theta_df.src_Id.apply(lambda x: patch_idx[x])
+            theta_df['dest_Id_int'] = theta_df.dest_Id.apply(lambda x: patch_idx[x])
+        except:
+            logger.info("Ignoring flow entries for missing patches. Ensure all patches listed in PatchFile.")
 
-    for k in Theta_indices:
-        theta_df_k = theta_df[theta_df.theta_index==k]
-        theta_df_k = theta_df_k.pivot(index='src_Id_int',columns='dest_Id_int',values='flow').fillna(0)
-        theta_df_k = theta_df_k.reindex(index=range(len(patch_df)),columns = range(len(patch_df))).fillna(0)
-        Theta[int(k)] = theta_df_k.values
+        Theta_indices = theta_df.theta_index.unique()
+        Theta = np.ndarray((len(Theta_indices),len(patch_df),len(patch_df)))
 
-    logger.info('Loaded temporal travel matrix')
-    return Theta
+        for k in Theta_indices:
+            theta_df_k = theta_df[theta_df.theta_index==k]
+            theta_df_k = theta_df_k.pivot(index='src_Id_int',columns='dest_Id_int',values='flow').fillna(0)
+            theta_df_k = theta_df_k.reindex(index=range(len(patch_df)),columns = range(len(patch_df))).fillna(0)
+            Theta[int(k)] = theta_df_k.values
 
-def patchsim_step(State_Array,patch_df,params,theta,seeds,vaxs,t,stoch,model='PatchSim'):
+        logger.info('Loaded temporal travel matrix')
+        return Theta
+    
+    elif params['model'] == 'epigrind':
+        logger.info('Loading %s via force of infection network loader' % configs['NetworkFile'])
+        Theta = dict()
+        for i, row in theta_df.iterrows():
+            [from_pop,to_pop,theta_index,flow] = row
+            to_id = patch_idx[to_pop]
+            from_id = patch_idx[from_pop]
+            if to_id not in Theta.keys():
+                Theta[to_id] = dict()
+            Theta[to_id][from_id] = flow
+        return Theta
+       
+
+def patchsim_step(State_Array,patch_df,params,theta,seeds,vaxs,t,stoch):
     S,E,I,R,V = State_Array ## Aliases for the State Array
 
     ## seeding for day t (seeding implies S->I)
@@ -179,7 +198,7 @@ def patchsim_step(State_Array,patch_df,params,theta,seeds,vaxs,t,stoch,model='Pa
         
         N = patch_df.pops.values
         
-        if model == 'patchsim':
+        if params['model'] == 'patchsim':
             N_eff = theta.T.dot(N)
             I_eff = theta.T.dot(I[t])
             beta_j_eff = np.nan_to_num(np.multiply(np.divide(I_eff,N_eff),params['beta'][:,t]))
@@ -187,18 +206,19 @@ def patchsim_step(State_Array,patch_df,params,theta,seeds,vaxs,t,stoch,model='Pa
             ## New exposures during day t
             new_inf = np.multiply(inf_force,S[t])
         
-        elif model == 'epigrind':
+        elif params['model'] == 'epigrind':
             new_inf = []
-            for patch_i,[patch_id,patch_pops] in patch_df.iterrows():
-                bySource = []
-                for exp in exps[key]:
-                    (source,contactRate) = exp
-                    pInf = I[t][source]/patch_pops
-                    force = contactRate*infectivity*pInf
-                    bySource.append(1-min(force,1))
-                    ## New exposures during day t
-                    new_inf.append(S[t][patch_i]*(1-np.prod(bySource))
-            
+            patches = patch_df.index
+            for to_id in theta.keys():
+                by_source = []
+                for from_id in theta[to_id].keys():
+                    contact_rate = theta[to_id][from_id]
+                    p_inf = I[t][from_id]/patch_df.at[from_id,'pops']
+                    inf_force = contact_rate*params['beta'][from_id,t]*p_inf
+                    by_source.append(1-min(inf_force,1))
+                ## New exposures during day t
+                new_inf.append(S[t][to_id]*(1-np.prod(by_source)))
+                
         S[t+1] = S[t] - new_inf
         E[t+1] = new_inf + np.multiply(1 - params['alpha'],E[t])
         I[t+1] = np.multiply(params['alpha'],E[t]) + np.multiply(1 - params['gamma'],I[t])
@@ -304,6 +324,7 @@ def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=No
         vaxs = load_vax(configs,params,patch_df)
 
     logger.info('Initializing simulation run...')
+    logger.info('Simulation method set to %s' % params['model'])
 
     if 'RandomSeed' in configs.keys():
         np.random.seed(int(configs['RandomSeed']))
@@ -312,11 +333,6 @@ def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=No
     else:
         stoch = False
         logger.info('No RandomSeed found. Running in deterministic mode...')
-        
-    if 'Model' in configs.keys():
-        model = configs['model'].lower()
-    else:
-        model = 'patchsim'
 
     dim = 5 ##Number of states (SEIRV)
     if stoch:
@@ -339,14 +355,18 @@ def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=No
         curr_week = int(curr_date.strftime("%U"))
         curr_month = int(curr_date.strftime("%m"))
 
-        if configs['NetworkType']=='Static':
-            patchsim_step(State_Array,patch_df,params,Theta[0],seeds,vaxs,t,stoch,model)
+        if params['model'] == 'patchsim':
+            if configs['NetworkType']=='Static':
+                patchsim_step(State_Array,patch_df,params,Theta[0],seeds,vaxs,t,stoch)
 
-        if configs['NetworkType']=='Weekly':
-            patchsim_step(State_Array,patch_df,params,Theta[curr_week-1],seeds,vaxs,t,stoch,model)
+            if configs['NetworkType']=='Weekly':
+                patchsim_step(State_Array,patch_df,params,Theta[curr_week-1],seeds,vaxs,t,stoch)
 
-        if configs['NetworkType']=='Monthly':
-            patchsim_step(State_Array,patch_df,params,Theta[curr_month-1],seeds,vaxs,t,stoch,model)
+            if configs['NetworkType']=='Monthly':
+                patchsim_step(State_Array,patch_df,params,Theta[curr_month-1],seeds,vaxs,t,stoch)
+                
+        elif params['model'] == 'epigrind':
+            patchsim_step(State_Array,patch_df,params,Theta,seeds,vaxs,t,False)
 
     if configs['SaveState'] == 'True':
         logger.info('Saving StateArray to File')
