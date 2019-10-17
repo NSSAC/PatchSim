@@ -209,7 +209,7 @@ def patchsim_step(State_Array,patch_df,params,theta,seeds,vaxs,t,stoch):
         elif params['model'] == 'epigrind':
             new_inf = []
             patches = patch_df.index
-            for to_id in theta.keys():
+            for to_id in sorted(list(theta.keys())):
                 by_source = []
                 for from_id in theta[to_id].keys():
                     contact_rate = theta[to_id][from_id]
