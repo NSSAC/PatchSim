@@ -15,7 +15,10 @@ logger = logging.getLogger(__name__)
 def read_config(config_file):
     config_df = pd.read_csv(config_file,delimiter='=',names=['key','val'])
     configs = dict(zip(config_df.key,config_df.val))
+    if 'Model' not in configs.keys():
+        configs['Model'] = 'Mobility'
     return configs
+
 
 def load_patch(configs):
     patch_df = pd.read_csv(configs['PatchFile'],names=['id','pops'],
@@ -131,7 +134,7 @@ def load_Theta(configs, params, patch_df):
     logger.info('Loaded temporal travel matrix')
     return Theta
 
-def patchsim_step(State_Array,patch_df,params,theta,seeds,vaxs,t,stoch):
+def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
     S,E,I,R,V = State_Array ## Aliases for the State Array
 
     ## seeding for day t (seeding implies S->I)
@@ -175,23 +178,33 @@ def patchsim_step(State_Array,patch_df,params,theta,seeds,vaxs,t,stoch):
         S[t] =  S[t] - actual_vax
         V[t] = V[t] + actual_vax
 
-        ## Computing force of infection
         N = patch_df.pops.values
-        N_eff = theta.T.dot(N)
-        I_eff = theta.T.dot(I[t])
-        beta_j_eff = np.nan_to_num(np.multiply(np.divide(I_eff,N_eff),params['beta'][:,t]))
-        inf_force = theta.dot(beta_j_eff)
+
+        ## Computing force of infection
+        if configs['Model'] == 'Mobility':
+            N_eff = theta.T.dot(N)
+            I_eff = theta.T.dot(I[t])
+            beta_j_eff = np.nan_to_num(np.multiply(np.divide(I_eff,N_eff),params['beta'][:,t]))
+            inf_force = theta.dot(beta_j_eff)
+
+
+        elif configs['Model'] == 'Force':
+            beta_j_eff = np.nan_to_num(np.multiply(np.divide(I[t],N),params['beta'][:,t]))
+            inf_force = theta.T.dot(beta_j_eff)
+
 
         ## New exposures during day t
         new_inf = np.multiply(inf_force,S[t])
+
+
 
         S[t+1] = S[t] - new_inf
         E[t+1] = new_inf + np.multiply(1 - params['alpha'],E[t])
         I[t+1] = np.multiply(params['alpha'],E[t]) + np.multiply(1 - params['gamma'],I[t])
         R[t+1] = R[t] + np.multiply(params['gamma'],I[t])
         V[t+1] = V[t]
-        
-        
+
+
 def epicurves_todf(configs,patch_df,State_Array):
     S,E,I,R,V = State_Array ## Aliases for the State Array
 
@@ -210,20 +223,20 @@ def epicurves_todf(configs,patch_df,State_Array):
         pass
 
     out_df = pd.DataFrame(columns = range(int(configs['Duration']) + 1))
-    
+
     for i in range(len(patch_df)):
         net_sus = S[:,i]+V[:,i]
         if configs['LoadState']=='False':
             net_sus = np.lib.pad(net_sus,(1,0),'constant',constant_values=(patch_df.pops.values[i],))
         new_exposed = np.abs(np.diff(net_sus))
 
-        
-        epicurve = [int(x*scaling) if rounding_bool else (x*scaling) for x in new_exposed]    
+
+        epicurve = [int(x*scaling) if rounding_bool else (x*scaling) for x in new_exposed]
         out_df.loc[patch_df.id.values[i]] = epicurve
-    
+
     return out_df
 
-    
+
 def write_epicurves(configs,patch_df,State_Array):
     S,E,I,R,V = State_Array ## Aliases for the State Array
     f = open(configs['OutputFile'],'w')
@@ -274,6 +287,13 @@ def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=No
     logger.info('Starting PatchSim')
     start = time.time()
 
+    if configs['Model'] not in ['Mobility','Force']:
+        logger.info('Invalid Model for PatchSim')
+        logger.removeHandler(handler)
+        return
+    else:
+        logger.info('Operating PatchSim under {} Model'.format(configs['Model']))
+
     if patch_df is None:
         patch_df = load_patch(configs)
 
@@ -321,33 +341,28 @@ def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=No
         curr_month = int(curr_date.strftime("%m"))
 
         if configs['NetworkType']=='Static':
-            patchsim_step(State_Array,patch_df,params,Theta[0],seeds,vaxs,t,stoch)
+            patchsim_step(State_Array,patch_df,configs,params,Theta[0],seeds,vaxs,t,stoch)
 
         if configs['NetworkType']=='Weekly':
-            patchsim_step(State_Array,patch_df,params,Theta[curr_week-1],seeds,vaxs,t,stoch)
+            patchsim_step(State_Array,patch_df,configs,params,Theta[curr_week-1],seeds,vaxs,t,stoch)
 
         if configs['NetworkType']=='Monthly':
-            patchsim_step(State_Array,patch_df,params,Theta[curr_month-1],seeds,vaxs,t,stoch)
+            patchsim_step(State_Array,patch_df,configs,params,Theta[curr_month-1],seeds,vaxs,t,stoch)
 
     if configs['SaveState'] == 'True':
         logger.info('Saving StateArray to File')
         np.save(configs['SaveFile'],State_Array[:,-1,:])
-        
+
     elapsed = time.time() - start
     logger.info('Simulation complete. Time elapsed: {} seconds.'.format(elapsed))
     logger.removeHandler(handler)
-    
+
     if (write_epi==False)&(return_epi==False):
         return int(sum(R[-1,:]))
     else:
         if (write_epi==True):
             write_epicurves(configs,patch_df,State_Array)
-            
+            return
+
         if (return_epi==True):
             return epicurves_todf(configs,patch_df,State_Array)
-
-
-
-
-    
-    
