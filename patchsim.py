@@ -281,8 +281,8 @@ def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=No
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         handler.setFormatter(formatter)
     except:
-        noop = logging.NullHandler()
-        logger.addHandler(noop)
+        handler = logging.NullHandler()
+        logger.addHandler(handler)
 
     logger.info('Starting PatchSim')
     start = time.time()
