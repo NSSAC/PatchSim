@@ -190,8 +190,8 @@ def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
 
         elif configs['Model'] == 'Force':
             beta_j_eff = np.nan_to_num(np.multiply(np.divide(I[t],N),params['beta'][:,t]))
-            inf_force = theta.T.dot(beta_j_eff)
-
+            #inf_force = theta.T.dot(beta_j_eff)
+            inf_force = beta_j_eff.dot(theta.T)
 
         ## New exposures during day t
         new_inf = np.multiply(inf_force,S[t])
