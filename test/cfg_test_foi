@@ -3,18 +3,15 @@ NetworkFile=test_net_foi.txt
 NetworkType=Static
 Model=Force
 
-ExposureRate=0.005
+ExposureRate=0.01
 InfectionRate=0.67
 RecoveryRate=0.4
 ScalingFactor=1
 
-SeedFile=test_seed.txt
-VaxFile=test_vax.txt
-VaxDelay=4
-VaxEfficacy=0.5
+SeedFile=test_seed_foi.txt
 
 StartDate=1
-Duration=100
+Duration=5
 
 LoadState=False
 SaveState=False

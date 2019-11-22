@@ -181,6 +181,7 @@ def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
         N = patch_df.pops.values
 
         ## Computing force of infection
+
         if configs['Model'] == 'Mobility':
             N_eff = theta.T.dot(N)
             I_eff = theta.T.dot(I[t])
@@ -190,12 +191,18 @@ def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
 
         elif configs['Model'] == 'Force':
             beta_j_eff = np.nan_to_num(np.multiply(np.divide(I[t],N),params['beta'][:,t]))
-            #inf_force = theta.T.dot(beta_j_eff)
-            inf_force = beta_j_eff.dot(theta.T)
+            inf_force = theta.T.dot(beta_j_eff)
 
         ## New exposures during day t
         new_inf = np.multiply(inf_force,S[t])
 
+        # print('=======Day {}========'.format(t))
+        # print("theta.T")
+        # print(theta.T)
+        # print("I[t], N, beta",I[t],N,params['beta'][:,t])
+        # print("beta_j_eff", beta_j_eff)
+        # print("inf_force",inf_force)
+        # print("S[t], new_inf", S[t],new_inf)
 
 
         S[t+1] = S[t] - new_inf
