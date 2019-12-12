@@ -103,7 +103,7 @@ def load_vax(configs,params,patch_df):
     vax_df = vax_df.reindex(index=range(params['T']),columns = range(len(patch_df))).fillna(0)
     return vax_df.values.astype(int)
 
-def load_Theta(configs, params, patch_df):
+def load_Theta(configs, patch_df):
     theta_df = pd.read_csv(configs['NetworkFile'],names=['src_Id','dest_Id','theta_index','flow'],
                             delimiter=' ',dtype={'src_Id':str, 'dest_Id':str})
 
@@ -195,15 +195,6 @@ def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
 
         ## New exposures during day t
         new_inf = np.multiply(inf_force,S[t])
-
-        # print('=======Day {}========'.format(t))
-        # print("theta.T")
-        # print(theta.T)
-        # print("I[t], N, beta",I[t],N,params['beta'][:,t])
-        # print("beta_j_eff", beta_j_eff)
-        # print("inf_force",inf_force)
-        # print("S[t], new_inf", S[t],new_inf)
-
 
         S[t+1] = S[t] - new_inf
         E[t+1] = new_inf + np.multiply(1 - params['alpha'],E[t])
