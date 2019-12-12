@@ -358,7 +358,7 @@ def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=No
     if (write_epi==False)&(return_epi==False):
         return int(sum(R[-1,:]))
     
-    if (write_epi==False)&(return_epi=True):
+    if (write_epi==False)&(return_epi==True):
         return epicurves_todf(configs,patch_df,State_Array)
     
     if (write_epi==True)&(return_epi==False):
