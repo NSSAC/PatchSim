@@ -299,7 +299,7 @@ def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=No
         params = load_params(configs,patch_df)
 
     if Theta is None:
-        Theta = load_Theta(configs, params, patch_df)
+        Theta = load_Theta(configs, patch_df)
 
     if seeds is None:
         seeds = load_seed(configs,params,patch_df)
