@@ -151,11 +151,11 @@ def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
 
         ## Computing force of infection
         N = patch_df.pops.values
-        S_edge = np.concatenate([np.random.multinomial(S[t][x],theta[x]).reshape(1,len(N)) for x in range(len(N))],axis=0)
-        E_edge = np.concatenate([np.random.multinomial(E[t][x],theta[x]).reshape(1,len(N)) for x in range(len(N))],axis=0)
-        I_edge = np.concatenate([np.random.multinomial(I[t][x],theta[x]).reshape(1,len(N)) for x in range(len(N))],axis=0)
-        R_edge = np.concatenate([np.random.multinomial(R[t][x],theta[x]).reshape(1,len(N)) for x in range(len(N))],axis=0)
-        V_edge = np.concatenate([np.random.multinomial(V[t][x],theta[x]).reshape(1,len(N)) for x in range(len(N))],axis=0)
+        S_edge = np.concatenate([np.random.multinomial(S[t][x],theta[x]/(theta[x].sum()+10**-12)).reshape(1,len(N)) for x in range(len(N))],axis=0)
+        E_edge = np.concatenate([np.random.multinomial(E[t][x],theta[x]/(theta[x].sum()+10**-12)).reshape(1,len(N)) for x in range(len(N))],axis=0)
+        I_edge = np.concatenate([np.random.multinomial(I[t][x],theta[x]/(theta[x].sum()+10**-12)).reshape(1,len(N)) for x in range(len(N))],axis=0)
+        R_edge = np.concatenate([np.random.multinomial(R[t][x],theta[x]/(theta[x].sum()+10**-12)).reshape(1,len(N)) for x in range(len(N))],axis=0)
+        V_edge = np.concatenate([np.random.multinomial(V[t][x],theta[x]/(theta[x].sum()+10**-12)).reshape(1,len(N)) for x in range(len(N))],axis=0)
         N_edge = S_edge + E_edge + I_edge + R_edge + V_edge
 
         N_eff = N_edge.sum(axis=0)
@@ -357,15 +357,14 @@ def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=No
 
     if (write_epi==False)&(return_epi==False):
         return int(sum(R[-1,:]))
-    
+
     if (write_epi==False)&(return_epi==True):
         return epicurves_todf(configs,patch_df,State_Array)
-    
+
     if (write_epi==True)&(return_epi==False):
         write_epicurves(configs,patch_df,State_Array)
         return
-    
+
     if (write_epi==True)&(return_epi==True):
         write_epicurves(configs,patch_df,State_Array)
         return epicurves_todf(configs,patch_df,State_Array)
-            
