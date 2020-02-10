@@ -56,6 +56,9 @@ def load_params(configs,patch_df):
         logger.info('No ParamFile loaded')
         pass
 
+
+    ### Optional parameters
+
     try:
         params['vaxeff'] = float(configs['VaxEfficacy'])
     except:
@@ -66,6 +69,22 @@ def load_params(configs,patch_df):
         logger.info('Found WaningRate. Running SEIRS model.')
     except:
         params['delta'] = np.repeat(0.0,len(patch_df))
+
+    try:
+        params['kappa'] = 1-float(configs['AsymptomaticReduction'])
+    except:
+        params['kappa'] = np.repeat(0.0,len(patch_df))
+
+    try:
+        params['symprob'] = float(configs['SymptomaticProbability'])
+    except:
+        params['symprob'] = np.repeat(1.0,len(patch_df))
+
+    try:
+        params['epsilon'] = float(configs['PresympExposureRate'])
+    except:
+        params['epsilon'] = np.repeat(0.0,len(patch_df))
+
 
     return params
 
@@ -202,7 +221,7 @@ def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
 
         ## New exposures during day t
         new_inf = np.multiply(inf_force,S[t])
-
+        ### Update to include presymptomatic and asymptomatic terms
         S[t+1] = S[t] - new_inf + np.multiply(params['delta'],R[t])
         E[t+1] = new_inf + np.multiply(1 - params['alpha'],E[t])
         I[t+1] = np.multiply(params['alpha'],E[t]) + np.multiply(1 - params['gamma'],I[t])
