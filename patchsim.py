@@ -61,6 +61,12 @@ def load_params(configs,patch_df):
     except:
         params['vaxeff'] = 1.0
 
+    try:
+        params['delta'] = float(configs['WaningRate'])
+        logger.info('Found WaningRate. Running SEIRS model.')
+    except:
+        params['delta'] = np.repeat(0.0,len(patch_df))
+
     return params
 
 def load_seed(configs,params,patch_df):
@@ -165,11 +171,12 @@ def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
         actual_SE = np.concatenate([np.random.binomial(S_edge[:,x],beta_j_eff[x]).reshape(len(N),1) for x in range(len(N))],axis=1).sum(axis=1)
         actual_EI = np.random.binomial(E[t],params['alpha'])
         actual_IR = np.random.binomial(I[t],params['gamma'])
+        actual_RS = np.random.binomial(R[t],params['delta'])
 
-        S[t+1] = S[t] - actual_SE
+        S[t+1] = S[t] - actual_SE + actual_RS
         E[t+1] = E[t] + actual_SE - actual_EI
         I[t+1] = I[t] + actual_EI - actual_IR
-        R[t+1] = R[t] + actual_IR
+        R[t+1] = R[t] + actual_IR - actual_RS
         V[t+1] = V[t]
 
     else:
@@ -196,10 +203,10 @@ def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
         ## New exposures during day t
         new_inf = np.multiply(inf_force,S[t])
 
-        S[t+1] = S[t] - new_inf
+        S[t+1] = S[t] - new_inf + np.multiply(params['delta'],R[t])
         E[t+1] = new_inf + np.multiply(1 - params['alpha'],E[t])
         I[t+1] = np.multiply(params['alpha'],E[t]) + np.multiply(1 - params['gamma'],I[t])
-        R[t+1] = R[t] + np.multiply(params['gamma'],I[t])
+        R[t+1] = R[t] + np.multiply(params['gamma'],I[t]) - np.multiply(params['delta'],R[t])
         V[t+1] = V[t]
 
 
