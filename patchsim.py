@@ -232,7 +232,7 @@ def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
         V[t+1] = V[t]
 
 
-def epicurves_todf(configs,patch_df,State_Array):
+def epicurves_todf(configs,params,patch_df,State_Array):
     S,E,I,R,V = State_Array ## Aliases for the State Array
 
     try:
@@ -253,10 +253,16 @@ def epicurves_todf(configs,patch_df,State_Array):
 
     for i in range(len(patch_df)):
         net_sus = S[:,i]+V[:,i]
+        net_rec = R[:,i]
         if configs['LoadState']=='False':
             net_sus = np.lib.pad(net_sus,(1,0),'constant',constant_values=(patch_df.pops.values[i],))
-        new_exposed = np.abs(np.diff(net_sus))
+            net_rec = np.lib.pad(net_rec,(0,1),'edge')
 
+        ### Not working!!!
+        new_exposed = np.abs(np.diff(net_sus))
+        return_recover = np.diff(net_rec)
+        new_exposed = new_exposed + params['delta']*return_recover
+        ### accounting for SEIRS
 
         epicurve = [int(x*scaling) if rounding_bool else (x*scaling) for x in new_exposed]
         out_df.loc[patch_df.id.values[i]] = epicurve
@@ -264,7 +270,7 @@ def epicurves_todf(configs,patch_df,State_Array):
     return out_df
 
 
-def write_epicurves(configs,patch_df,State_Array):
+def write_epicurves(configs,params,patch_df,State_Array):
     S,E,I,R,V = State_Array ## Aliases for the State Array
     f = open(configs['OutputFile'],'w')
 
@@ -284,9 +290,16 @@ def write_epicurves(configs,patch_df,State_Array):
 
     for i in range(len(patch_df)):
         net_sus = S[:,i]+V[:,i]
+        net_rec = R[:,i]
         if configs['LoadState']=='False':
             net_sus = np.lib.pad(net_sus,(1,0),'constant',constant_values=(patch_df.pops.values[i],))
+            net_rec = np.lib.pad(net_rec,(0,1),'edge')
+
+        ### Not working!!!
         new_exposed = np.abs(np.diff(net_sus))
+        return_recover = np.diff(net_rec)
+        new_exposed = new_exposed + params['delta']*return_recover
+
 
         if rounding_bool:
             epicurve = ' '.join([str(int(x*scaling)) for x in new_exposed])
@@ -296,7 +309,7 @@ def write_epicurves(configs,patch_df,State_Array):
         f.write('{} {}\n'.format(patch_df.id.values[i], epicurve))
     f.close()
 
-def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=None,vaxs=None,return_epi=False,write_epi=False):
+def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=None,vaxs=None,return_epi=False,write_epi=False,return_full=False):
     try:
         handler = logging.FileHandler(configs['LogFile'], mode='w')
         for hdlr in logger.handlers[:]:  # remove the existing file handlers
@@ -384,16 +397,19 @@ def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=No
     logger.info('Simulation complete. Time elapsed: {} seconds.'.format(elapsed))
     logger.removeHandler(handler)
 
+    if (return_full==True):
+        return State_Array
+
     if (write_epi==False)&(return_epi==False):
         return int(sum(R[-1,:]))
 
     if (write_epi==False)&(return_epi==True):
-        return epicurves_todf(configs,patch_df,State_Array)
+        return epicurves_todf(configs,params,patch_df,State_Array)
 
     if (write_epi==True)&(return_epi==False):
-        write_epicurves(configs,patch_df,State_Array)
+        write_epicurves(configs,params,patch_df,State_Array)
         return
 
     if (write_epi==True)&(return_epi==True):
-        write_epicurves(configs,patch_df,State_Array)
-        return epicurves_todf(configs,patch_df,State_Array)
+        write_epicurves(configs,params,patch_df,State_Array)
+        return epicurves_todf(configs,params,patch_df,State_Array)
