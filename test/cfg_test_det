@@ -5,6 +5,12 @@ NetworkType=Static
 ExposureRate=0.65
 InfectionRate=0.67
 RecoveryRate=0.4
+WaningRate=0.03
+
+SymptomaticProbability=0.2
+AsymptomaticReduction=0.5
+PresymptomaticReduction=0.5
+
 ScalingFactor=1
 
 SeedFile=test_seed.txt

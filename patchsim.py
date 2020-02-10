@@ -68,22 +68,22 @@ def load_params(configs,patch_df):
         params['delta'] = float(configs['WaningRate'])
         logger.info('Found WaningRate. Running SEIRS model.')
     except:
-        params['delta'] = np.repeat(0.0,len(patch_df))
+        params['delta'] = 0.0
 
     try:
         params['kappa'] = 1-float(configs['AsymptomaticReduction'])
     except:
-        params['kappa'] = np.repeat(0.0,len(patch_df))
+        params['kappa'] = 1.0
 
     try:
         params['symprob'] = float(configs['SymptomaticProbability'])
     except:
-        params['symprob'] = np.repeat(1.0,len(patch_df))
+        params['symprob'] = 1.0
 
     try:
-        params['epsilon'] = float(configs['PresympExposureRate'])
+        params['epsilon'] = float(configs['PresymptomaticReduction'])
     except:
-        params['epsilon'] = np.repeat(0.0,len(patch_df))
+        params['epsilon'] = 0.0
 
 
     return params
@@ -192,6 +192,7 @@ def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
         actual_IR = np.random.binomial(I[t],params['gamma'])
         actual_RS = np.random.binomial(R[t],params['delta'])
 
+        ### Update to include presymptomatic and asymptomatic terms
         S[t+1] = S[t] - actual_SE + actual_RS
         E[t+1] = E[t] + actual_SE - actual_EI
         I[t+1] = I[t] + actual_EI - actual_IR
@@ -211,8 +212,10 @@ def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
         if configs['Model'] == 'Mobility':
             N_eff = theta.T.dot(N)
             I_eff = theta.T.dot(I[t])
-            beta_j_eff = np.nan_to_num(np.multiply(np.divide(I_eff,N_eff),params['beta'][:,t]))
-            inf_force = theta.dot(beta_j_eff)
+            E_eff = theta.T.dot(E[t])
+            beta_j_eff = np.nan_to_num(np.multiply(np.divide(I_eff,N_eff),params['beta'][:,t]*((1-params['kappa'])*(1-params['symprob']) + params['symprob']))) ## force of infection from symp/asymptomatic individuals
+            E_beta_j_eff = np.nan_to_num(np.multiply(np.divide(E_eff,N_eff),params['beta'][:,t]*(1-params['epsilon']))) ##force of infection from presymptomatic individuals
+            inf_force = theta.dot(beta_j_eff+E_beta_j_eff)
 
 
         elif configs['Model'] == 'Force':
@@ -225,7 +228,7 @@ def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
         S[t+1] = S[t] - new_inf + np.multiply(params['delta'],R[t])
         E[t+1] = new_inf + np.multiply(1 - params['alpha'],E[t])
         I[t+1] = np.multiply(params['alpha'],E[t]) + np.multiply(1 - params['gamma'],I[t])
-        R[t+1] = R[t] + np.multiply(params['gamma'],I[t]) - np.multiply(params['delta'],R[t])
+        R[t+1] = np.multiply(params['gamma'],I[t]) + np.multiply(1 - params['delta'],R[t])
         V[t+1] = V[t]
 
 
