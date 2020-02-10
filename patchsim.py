@@ -83,7 +83,7 @@ def load_params(configs,patch_df):
     try:
         params['epsilon'] = float(configs['PresymptomaticReduction'])
     except:
-        params['epsilon'] = 0.0
+        params['epsilon'] = 1.0
 
 
     return params
