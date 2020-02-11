@@ -60,6 +60,11 @@ def load_params(configs,patch_df):
     ### Optional parameters
 
     try:
+        params['scaling'] = float(configs['ScalingFactor'])
+    except:
+        params['scaling'] = 1
+        
+    try:
         params['vaxeff'] = float(configs['VaxEfficacy'])
     except:
         params['vaxeff'] = 1.0
@@ -160,7 +165,7 @@ def load_Theta(configs, patch_df):
     return Theta
 
 def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
-    S,E,I,R,V = State_Array ## Aliases for the State Array
+    S,E,I,R,V,new_inf = State_Array ## Aliases for the State Array
 
     ## seeding for day t (seeding implies S->I)
     actual_seed = np.minimum(seeds[t],S[t])
@@ -223,91 +228,38 @@ def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
             inf_force = theta.T.dot(beta_j_eff)
 
         ## New exposures during day t
-        new_inf = np.multiply(inf_force,S[t])
+        new_inf[t] = np.multiply(inf_force,S[t])
         ### Update to include presymptomatic and asymptomatic terms
-        S[t+1] = S[t] - new_inf + np.multiply(params['delta'],R[t])
-        E[t+1] = new_inf + np.multiply(1 - params['alpha'],E[t])
+        S[t+1] = S[t] - new_inf[t] + np.multiply(params['delta'],R[t])
+        E[t+1] = new_inf[t] + np.multiply(1 - params['alpha'],E[t])
         I[t+1] = np.multiply(params['alpha'],E[t]) + np.multiply(1 - params['gamma'],I[t])
         R[t+1] = np.multiply(params['gamma'],I[t]) + np.multiply(1 - params['delta'],R[t])
         V[t+1] = V[t]
 
 
 def epicurves_todf(configs,params,patch_df,State_Array):
-    S,E,I,R,V = State_Array ## Aliases for the State Array
-
-    try:
-        scaling = float(configs['ScalingFactor'])
-    except:
-        scaling = 1
-
-    rounding_bool = True
-    try:
-        if configs['OutputFormat'] == 'Whole':
-            rounding_bool = True
-        if configs['OutputFormat'] == 'Fractional':
-            rounding_bool = False
-    except:
-        pass
-
-    out_df = pd.DataFrame(columns = range(int(configs['Duration']) + 1))
-
-    for i in range(len(patch_df)):
-        net_sus = S[:,i]+V[:,i]
-        net_rec = R[:,i]
-        if configs['LoadState']=='False':
-            net_sus = np.lib.pad(net_sus,(1,0),'constant',constant_values=(patch_df.pops.values[i],))
-            net_rec = np.lib.pad(net_rec,(0,1),'edge')
-
-        ### Not working!!!
-        new_exposed = np.abs(np.diff(net_sus))
-        return_recover = np.diff(net_rec)
-        new_exposed = new_exposed + params['delta']*return_recover
-        ### accounting for SEIRS
-
-        epicurve = [int(x*scaling) if rounding_bool else (x*scaling) for x in new_exposed]
-        out_df.loc[patch_df.id.values[i]] = epicurve
-
+    S,E,I,R,V,new_inf = State_Array ## Aliases for the State Array
+    
+    out_df = pd.DataFrame(index=patch_df.id.values,columns = range(int(configs['Duration'])),data=new_inf[:-1,:].T)
+    if configs['OutputFormat']=='Whole':
+        out_df = out_df.round().astype(int)
+        
     return out_df
 
+def write_epicurves(configs,params,patch_df,State_Array,write_epi,return_epi):
 
-def write_epicurves(configs,params,patch_df,State_Array):
-    S,E,I,R,V = State_Array ## Aliases for the State Array
-    f = open(configs['OutputFile'],'w')
+    out_df = epicurves_todf(configs,params,patch_df,State_Array)
+    
+    if (write_epi==False)&(return_epi==False):
+        return out_df.sum().sum()
+    else:
+        if write_epi==True:
+            out_df.to_csv(configs['OutputFile'],header=None,sep=' ')
 
-    try:
-        scaling = float(configs['ScalingFactor'])
-    except:
-        scaling = 1
-
-    rounding_bool = True
-    try:
-        if configs['OutputFormat'] == 'Whole':
-            rounding_bool = True
-        if configs['OutputFormat'] == 'Fractional':
-            rounding_bool = False
-    except:
-        pass
-
-    for i in range(len(patch_df)):
-        net_sus = S[:,i]+V[:,i]
-        net_rec = R[:,i]
-        if configs['LoadState']=='False':
-            net_sus = np.lib.pad(net_sus,(1,0),'constant',constant_values=(patch_df.pops.values[i],))
-            net_rec = np.lib.pad(net_rec,(0,1),'edge')
-
-        ### Not working!!!
-        new_exposed = np.abs(np.diff(net_sus))
-        return_recover = np.diff(net_rec)
-        new_exposed = new_exposed + params['delta']*return_recover
-
-
-        if rounding_bool:
-            epicurve = ' '.join([str(int(x*scaling)) for x in new_exposed])
-        else:
-            epicurve = ' '.join([str(x*scaling) for x in new_exposed])
-
-        f.write('{} {}\n'.format(patch_df.id.values[i], epicurve))
-    f.close()
+        if return_epi==True:
+            return out_df
+    
+        return 
 
 def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=None,vaxs=None,return_epi=False,write_epi=False,return_full=False):
     try:
@@ -359,14 +311,14 @@ def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=No
         stoch = False
         logger.info('No RandomSeed found. Running in deterministic mode...')
 
-    dim = 5 ##Number of states (SEIRV)
+    dim = 5+1 ##Number of states (SEIRV) + One for tracking new infections
     if stoch:
         State_Array = np.ndarray((dim,params['T']+1,len(patch_df))).astype(int)
     else:
         State_Array = np.ndarray((dim,params['T']+1,len(patch_df)))
 
     State_Array.fill(0)
-    S,E,I,R,V = State_Array ## Aliases for the State Array
+    S,E,I,R,V,new_inf = State_Array ## Aliases for the State Array
 
     if configs['LoadState'] =='True':
         State_Array[:,0,:] = np.load(configs['LoadFile'])
@@ -397,19 +349,6 @@ def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=No
     logger.info('Simulation complete. Time elapsed: {} seconds.'.format(elapsed))
     logger.removeHandler(handler)
 
-    if (return_full==True):
-        return State_Array
-
-    if (write_epi==False)&(return_epi==False):
-        return int(sum(R[-1,:]))
-
-    if (write_epi==False)&(return_epi==True):
-        return epicurves_todf(configs,params,patch_df,State_Array)
-
-    if (write_epi==True)&(return_epi==False):
-        write_epicurves(configs,params,patch_df,State_Array)
-        return
-
-    if (write_epi==True)&(return_epi==True):
-        write_epicurves(configs,params,patch_df,State_Array)
-        return epicurves_todf(configs,params,patch_df,State_Array)
+#     if (return_full==True): ##Use for debugging
+#         return State_Array
+    return write_epicurves(configs,params,patch_df,State_Array,write_epi,return_epi)
