@@ -63,7 +63,7 @@ def load_params(configs,patch_df):
         params['scaling'] = float(configs['ScalingFactor'])
     except:
         params['scaling'] = 1
-        
+
     try:
         params['vaxeff'] = float(configs['VaxEfficacy'])
     except:
@@ -239,17 +239,18 @@ def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
 
 def epicurves_todf(configs,params,patch_df,State_Array):
     S,E,I,R,V,new_inf = State_Array ## Aliases for the State Array
-    
+
     out_df = pd.DataFrame(index=patch_df.id.values,columns = range(int(configs['Duration'])),data=new_inf[:-1,:].T)
+    out_df = out_df*float(params['scaling'])
     if configs['OutputFormat']=='Whole':
         out_df = out_df.round().astype(int)
-        
+
     return out_df
 
 def write_epicurves(configs,params,patch_df,State_Array,write_epi,return_epi):
 
     out_df = epicurves_todf(configs,params,patch_df,State_Array)
-    
+
     if (write_epi==False)&(return_epi==False):
         return out_df.sum().sum()
     else:
@@ -258,8 +259,8 @@ def write_epicurves(configs,params,patch_df,State_Array,write_epi,return_epi):
 
         if return_epi==True:
             return out_df
-    
-        return 
+
+        return
 
 def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=None,vaxs=None,return_epi=False,write_epi=False,return_full=False):
     try:

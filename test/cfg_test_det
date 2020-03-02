@@ -11,7 +11,7 @@ SymptomaticProbability=0.2
 AsymptomaticReduction=0.5
 PresymptomaticReduction=0.5
 
-ScalingFactor=1
+ScalingFactor=0.1
 
 SeedFile=test_seed.txt
 VaxFile=test_vax.txt
