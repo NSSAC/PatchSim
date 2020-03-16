@@ -180,6 +180,9 @@ def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
         V[t] = V[t] + actual_SV
 
         ## Computing force of infection
+        ## Modify this to do travel network sampling only once and use it for the entire simulation. 
+        ## Or even skip network sampling altogether, and model only disease progression stochasticity
+        
         N = patch_df.pops.values
         S_edge = np.concatenate([np.random.multinomial(S[t][x],theta[x]/(theta[x].sum()+10**-12)).reshape(1,len(N)) for x in range(len(N))],axis=0)
         E_edge = np.concatenate([np.random.multinomial(E[t][x],theta[x]/(theta[x].sum()+10**-12)).reshape(1,len(N)) for x in range(len(N))],axis=0)
@@ -225,10 +228,13 @@ def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
 
         elif configs['Model'] == 'Force':
             beta_j_eff = np.nan_to_num(np.multiply(np.divide(I[t],N),params['beta'][:,t]))
+            #print(beta_j_eff)
             inf_force = theta.T.dot(beta_j_eff)
-
+            #print(inf_force)
+            
         ## New exposures during day t
-        new_inf[t] = np.multiply(inf_force,S[t])
+        new_inf[t] = np.minimum(np.multiply(inf_force,S[t]),S[t]) ## Maximum number of new infections at time t is S[t]
+        #print(new_inf)
         ### Update to include presymptomatic and asymptomatic terms
         S[t+1] = S[t] - new_inf[t] + np.multiply(params['delta'],R[t])
         E[t+1] = new_inf[t] + np.multiply(1 - params['alpha'],E[t])
