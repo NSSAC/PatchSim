@@ -1,3 +1,5 @@
+US_county/
+__MACOSX/
 *.npy
 *.log
 *.aux

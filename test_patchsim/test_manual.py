@@ -1,5 +1,6 @@
 """Tests from the manual tests directory."""
 
+import pytest
 from util import assert_equal_files, chdir_context
 
 import patchsim as sim
@@ -54,3 +55,13 @@ def test_stopstart(workdir):
         assert_equal_files("test1.out", "test1_stopstart.out.expected")
         assert_equal_files("test2.out", "test2_stopstart.out.expected")
         assert_equal_files("test3.out", "test3_stopstart.out.expected")
+
+
+@pytest.mark.slow
+def test_det_US(workdir_us_county):
+    """Run the test_det_US setting."""
+    with chdir_context(workdir_us_county):
+        configs = sim.read_config("cfg_test_det_US")
+        sim.run_disease_simulation(configs, write_epi=True)
+
+        assert_equal_files("test_US.out", "test_US.out.expected")
