@@ -19,3 +19,11 @@ def test_foi(workdir):
         sim.run_disease_simulation(configs, write_epi=True)
 
         assert_equal_files("test_foi.out", "test_foi.out.expected")
+
+def test_paramfile(workdir):
+    """Run the test_paramfile setting."""
+    with chdir_context(workdir):
+        configs = sim.read_config('cfg_paramfile')
+        sim.run_disease_simulation(configs, write_epi=True)
+
+        assert_equal_files("test.out", "test_paramfile.out.expected")
