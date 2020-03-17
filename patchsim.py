@@ -14,14 +14,77 @@ logger = logging.getLogger(__name__)
 
 
 def read_config(config_file):
+    """Read configuration.
+
+    Configuration files contain one key=value pair per line.
+    The following is an example of the contents of a config file::
+
+        PatchFile=test_pop.txt
+        NetworkFile=test_net.txt
+        NetworkType=Static
+
+        ExposureRate=0.65
+        InfectionRate=0.67
+        RecoveryRate=0.4
+        ScalingFactor=1
+
+        SeedFile=test_seed.txt
+        VaxFile=test_vax.txt
+        VaxDelay=4
+        VaxEfficacy=0.5
+
+        StartDate=1
+        Duration=30
+
+        LoadState=False
+        SaveState=True
+        SaveFile=checkpoint1.npy
+
+        OutputFile=test1.out
+        OutputFormat=Whole
+        LogFile=test1.log
+
+    Parameters
+    ----------
+    config_file : str
+        Path to the configuration file.
+
+    Returns
+    -------
+    dict (str -> str)
+        The configuration key value pairs.
+    """
     config_df = pd.read_csv(config_file, delimiter="=", names=["key", "val"])
     configs = dict(zip(config_df.key, config_df.val))
-    if "Model" not in configs.keys():
+    if "Model" not in configs:
         configs["Model"] = "Mobility"
     return configs
 
 
 def load_patch(configs):
+    """Load the patch file.
+
+    A patch file contains the population size of a patch.
+    The file has two space separated columns.
+    Following is an example of a patch file::
+
+        A 10000
+        B 10000
+        C 10000
+
+    Parameters
+    ----------
+    configs : dict
+        The configuration dictionary.
+        Must contain the "PatchFile" pointing to location of patch file.
+
+    Returns
+    -------
+    pd.DataFrame
+        A pandas dataframe with following columns.
+        id : dtype=str
+        pops : dtype=int
+    """
     patch_df = pd.read_csv(
         configs["PatchFile"],
         names=["id", "pops"],
