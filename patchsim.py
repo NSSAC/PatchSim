@@ -56,8 +56,7 @@ def read_config(config_file):
     """
     config_df = pd.read_csv(config_file, delimiter="=", names=["key", "val"])
     configs = dict(zip(config_df.key, config_df.val))
-    if "Model" not in configs:
-        configs["Model"] = "Mobility"
+    configs.setdefault("Model", "Mobility")
     return configs
 
 
