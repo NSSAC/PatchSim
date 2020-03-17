@@ -96,76 +96,91 @@ def load_patch(configs):
     return patch_df
 
 
+def load_param_file(configs):
+    """Load the parameter file.
+
+    A parameter file contains one row per patch.
+    Each row must have two or more columns.
+    Following is an example of a paremter file::
+
+        B 0 0 0.54 0.54 0.54 0.54 0 0 0 0
+        A 0.72
+
+    Parameters
+    ----------
+    configs : dict
+        The configuration dictionary.
+        Must contain the "ParamFile" pointing to location of parameter file.
+    patch_df : pd.DataFrame
+        A pandas dataframe with following columns.
+        id : dtype=str
+        pops : dtype=int
+
+    Returns
+    -------
+    pd.DataFrame
+         A pandas dataframe with one column per patch
+         The column names are IDs of the patches.
+    """
+    param_df = pd.read_csv(
+        configs["ParamFile"], delimiter=" ", dtype={0: str}, header=None
+    )
+    param_df = param_df.set_index(0)
+    param_df = param_df.fillna(method="ffill", axis=1)
+    param_df = param_df.T
+
+    return param_df
+
+
 def load_params(configs, patch_df):
+    """Load the simulation parameters.
+
+    Parameters
+    ----------
+    configs : dict (str -> str)
+        The configuration key value pairs.
+    patch_df : pd.DataFrame
+        A pandas dataframe with following columns.
+        id : dtype=str
+        pops : dtype=int
+
+    Returns
+    -------
+    dict (str -> float or ndarray)
+        A dictionary of model parameters.
+        The "beta" parameter is a matrix (NumPatchesxNumTimesteps).
+    """
     params = {}
     params["T"] = int(configs["Duration"])
-    try:
-        # params['beta'] = np.repeat(float(configs['ExposureRate']),len(patch_df))
-        params["beta"] = np.ones([len(patch_df), params["T"]]) * float(
-            configs["ExposureRate"]
-        )
-        params["alpha"] = float(configs["InfectionRate"])
-        params["gamma"] = float(configs["RecoveryRate"])
-        logger.info("Loaded disease parameters from Config")
 
-    except:
-        params["beta"] = np.zeros([len(patch_df), params["T"]])
-        params["alpha"] = np.repeat(0.0, len(patch_df))
-        params["gamma"] = np.repeat(0.0, len(patch_df))
-        logger.info("No parameter values in Config. Setting default to 0.")
+    beta = float(configs.get("ExposureRate", 0.0))
+    params["beta"] = np.full((len(patch_df), params["T"]), beta)
+    params["alpha"] = float(configs.get("InfectionRate", 0.0))
+    params["gamma"] = float(configs.get("RecoveryRate", 0.0))
+    logger.info(
+        "Parameter: alpha=%e, beta=%e, gamma=%e", params["alpha"], beta, params["gamma"]
+    )
 
-    try:
-        param_df = (
-            pd.read_csv(
-                configs["ParamFile"], delimiter=" ", dtype={0: str}, header=None
-            )
-            .set_index(0)
-            .fillna(method="ffill", axis=1)
-        )
-        patch_idx = dict(zip(patch_df.id.values, range(len(patch_df))))
-        param_df["Id_int"] = param_df.index.map(patch_idx)
-        param_df.sort_values("Id_int", inplace=True)
-        params["beta"][param_df.Id_int.values, :] = param_df[
-            param_df.columns.difference(["Id_int"])
-        ].values
-
+    if "ParamFile" in configs:
+        param_df = load_param_file(configs)
+        for i, id_ in enumerate(patch_df["id"]):
+            if id_ in param_df.columns:
+                xs = param_df[id_]
+                params["beta"][i, 0 : len(xs)] = xs
         logger.info("Loaded disease parameters from ParamFile")
-    except:
+    else:
         logger.info("No ParamFile loaded")
-        pass
 
     ### Optional parameters
+    params["scaling"] = float(configs.get("ScalingFactor", 1.0))
+    params["vaxeff"] = float(configs.get("VaxEfficacy", 1.0))
+    params["delta"] = float(configs.get("WaningRate", 0.0))
+    params["kappa"] = 1 - float(configs.get("AsymptomaticReduction", 0.0))
+    params["symprob"] = float(configs.get("SymptomaticProbability", 1.0))
+    params["epsilon"] = float(configs.get("PresymptomaticReduction", 1.0))
 
-    try:
-        params["scaling"] = float(configs["ScalingFactor"])
-    except:
-        params["scaling"] = 1
-
-    try:
-        params["vaxeff"] = float(configs["VaxEfficacy"])
-    except:
-        params["vaxeff"] = 1.0
-
-    try:
-        params["delta"] = float(configs["WaningRate"])
+    if params["delta"]:
         logger.info("Found WaningRate. Running SEIRS model.")
-    except:
-        params["delta"] = 0.0
-
-    try:
-        params["kappa"] = 1 - float(configs["AsymptomaticReduction"])
-    except:
-        params["kappa"] = 1.0
-
-    try:
-        params["symprob"] = float(configs["SymptomaticProbability"])
-    except:
-        params["symprob"] = 1.0
-
-    try:
-        params["epsilon"] = float(configs["PresymptomaticReduction"])
-    except:
-        params["epsilon"] = 1.0
 
     return params
 
