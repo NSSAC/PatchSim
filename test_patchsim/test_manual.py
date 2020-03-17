@@ -39,3 +39,18 @@ def test_stoc(workdir):
         sim.run_disease_simulation(configs, write_epi=True)
 
         assert_equal_files("test_stoc.out", "test_stoc.out.expected")
+
+
+def test_stopstart(workdir):
+    """Run the test_stopstart setting."""
+    with chdir_context(workdir):
+        configs = sim.read_config("cfg_check1")
+        sim.run_disease_simulation(configs, write_epi=True)
+        configs = sim.read_config("cfg_check2")
+        sim.run_disease_simulation(configs, write_epi=True)
+        configs = sim.read_config("cfg_check3")
+        sim.run_disease_simulation(configs, write_epi=True)
+
+        assert_equal_files("test1.out", "test1_stopstart.out.expected")
+        assert_equal_files("test2.out", "test2_stopstart.out.expected")
+        assert_equal_files("test3.out", "test3_stopstart.out.expected")
