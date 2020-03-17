@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-''' PatchSim v1.2
+""" PatchSim v1.2
 Created and maintained by: Srini (srini@virginia.edu)
 Date last modified: 6 Aug 2019
-'''
+"""
 import numpy as np
 import pandas as pd
 import logging
@@ -12,349 +12,566 @@ from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
+
 def read_config(config_file):
-    config_df = pd.read_csv(config_file,delimiter='=',names=['key','val'])
-    configs = dict(zip(config_df.key,config_df.val))
-    configs.setdefault('Model', 'Mobility')
+    """Read configuration.
+
+    Configuration files contain one key=value pair per line.
+    The following is an example of the contents of a config file::
+
+        PatchFile=test_pop.txt
+        NetworkFile=test_net.txt
+        NetworkType=Static
+
+        ExposureRate=0.65
+        InfectionRate=0.67
+        RecoveryRate=0.4
+        ScalingFactor=1
+
+        SeedFile=test_seed.txt
+        VaxFile=test_vax.txt
+        VaxDelay=4
+        VaxEfficacy=0.5
+
+        StartDate=1
+        Duration=30
+
+        LoadState=False
+        SaveState=True
+        SaveFile=checkpoint1.npy
+
+        OutputFile=test1.out
+        OutputFormat=Whole
+        LogFile=test1.log
+
+    Parameters
+    ----------
+    config_file : str
+        Path to the configuration file.
+
+    Returns
+    -------
+    dict (str -> str)
+        The configuration key value pairs.
+    """
+    config_df = pd.read_csv(config_file, delimiter="=", names=["key", "val"])
+    configs = dict(zip(config_df.key, config_df.val))
+    configs.setdefault("Model", "Mobility")
     return configs
 
 
 def load_patch(configs):
-    patch_df = pd.read_csv(configs['PatchFile'],names=['id','pops'],
-                            delimiter=' ',dtype={'id':str,'pops':int})
-    patch_df.sort_values('id',inplace=True)
+    """Load the patch file.
 
-    logger.info('Loaded patch attributes')
+    A patch file contains the population size of a patch.
+    The file has two space separated columns.
+    Following is an example of a patch file::
+
+        A 10000
+        B 10000
+        C 10000
+
+    Parameters
+    ----------
+    configs : dict
+        The configuration dictionary.
+        Must contain the "PatchFile" pointing to location of patch file.
+
+    Returns
+    -------
+    pd.DataFrame
+        A pandas dataframe with following columns.
+        id : dtype=str
+        pops : dtype=int
+    """
+    patch_df = pd.read_csv(
+        configs["PatchFile"],
+        names=["id", "pops"],
+        delimiter=" ",
+        dtype={"id": str, "pops": int},
+    )
+    patch_df.sort_values("id", inplace=True)
+
+    logger.info("Loaded patch attributes")
     return patch_df
 
-def load_params(configs,patch_df):
+
+def load_params(configs, patch_df):
     params = {}
-    params['T'] = int(configs['Duration'])
+    params["T"] = int(configs["Duration"])
     try:
-        #params['beta'] = np.repeat(float(configs['ExposureRate']),len(patch_df))
-        params['beta'] = np.ones([len(patch_df),params['T']])*float(configs['ExposureRate'])
-        params['alpha'] = float(configs['InfectionRate'])
-        params['gamma'] = float(configs['RecoveryRate'])
-        logger.info('Loaded disease parameters from Config')
+        # params['beta'] = np.repeat(float(configs['ExposureRate']),len(patch_df))
+        params["beta"] = np.ones([len(patch_df), params["T"]]) * float(
+            configs["ExposureRate"]
+        )
+        params["alpha"] = float(configs["InfectionRate"])
+        params["gamma"] = float(configs["RecoveryRate"])
+        logger.info("Loaded disease parameters from Config")
 
     except:
-        params['beta'] = np.zeros([len(patch_df),params['T']])
-        params['alpha'] = np.repeat(0.0,len(patch_df))
-        params['gamma'] = np.repeat(0.0,len(patch_df))
-        logger.info('No parameter values in Config. Setting default to 0.')
+        params["beta"] = np.zeros([len(patch_df), params["T"]])
+        params["alpha"] = np.repeat(0.0, len(patch_df))
+        params["gamma"] = np.repeat(0.0, len(patch_df))
+        logger.info("No parameter values in Config. Setting default to 0.")
 
     try:
-        param_df = pd.read_csv(configs['ParamFile'], delimiter=' ',dtype={0:str},header=None).set_index(0).fillna(method='ffill',axis=1)
-        patch_idx = dict(zip(patch_df.id.values,range(len(patch_df))))
-        param_df['Id_int'] = param_df.index.map(patch_idx)
-        param_df.sort_values('Id_int',inplace=True)
-        params['beta'][param_df.Id_int.values,:] = param_df[param_df.columns.difference(['Id_int'])].values
+        param_df = (
+            pd.read_csv(
+                configs["ParamFile"], delimiter=" ", dtype={0: str}, header=None
+            )
+            .set_index(0)
+            .fillna(method="ffill", axis=1)
+        )
+        patch_idx = dict(zip(patch_df.id.values, range(len(patch_df))))
+        param_df["Id_int"] = param_df.index.map(patch_idx)
+        param_df.sort_values("Id_int", inplace=True)
+        params["beta"][param_df.Id_int.values, :] = param_df[
+            param_df.columns.difference(["Id_int"])
+        ].values
 
-        logger.info('Loaded disease parameters from ParamFile')
+        logger.info("Loaded disease parameters from ParamFile")
     except:
-        logger.info('No ParamFile loaded')
+        logger.info("No ParamFile loaded")
         pass
-
 
     ### Optional parameters
 
     try:
-        params['scaling'] = float(configs['ScalingFactor'])
+        params["scaling"] = float(configs["ScalingFactor"])
     except:
-        params['scaling'] = 1
+        params["scaling"] = 1
 
     try:
-        params['vaxeff'] = float(configs['VaxEfficacy'])
+        params["vaxeff"] = float(configs["VaxEfficacy"])
     except:
-        params['vaxeff'] = 1.0
+        params["vaxeff"] = 1.0
 
     try:
-        params['delta'] = float(configs['WaningRate'])
-        logger.info('Found WaningRate. Running SEIRS model.')
+        params["delta"] = float(configs["WaningRate"])
+        logger.info("Found WaningRate. Running SEIRS model.")
     except:
-        params['delta'] = 0.0
+        params["delta"] = 0.0
 
     try:
-        params['kappa'] = 1-float(configs['AsymptomaticReduction'])
+        params["kappa"] = 1 - float(configs["AsymptomaticReduction"])
     except:
-        params['kappa'] = 1.0
+        params["kappa"] = 1.0
 
     try:
-        params['symprob'] = float(configs['SymptomaticProbability'])
+        params["symprob"] = float(configs["SymptomaticProbability"])
     except:
-        params['symprob'] = 1.0
+        params["symprob"] = 1.0
 
     try:
-        params['epsilon'] = float(configs['PresymptomaticReduction'])
+        params["epsilon"] = float(configs["PresymptomaticReduction"])
     except:
-        params['epsilon'] = 1.0
-
+        params["epsilon"] = 1.0
 
     return params
 
-def load_seed(configs,params,patch_df):
+
+def load_seed(configs, params, patch_df):
     try:
-        seed_df = pd.read_csv(configs['SeedFile'],delimiter=' ',names=['Day','Id','Count'],dtype={'Id':str})
+        seed_df = pd.read_csv(
+            configs["SeedFile"],
+            delimiter=" ",
+            names=["Day", "Id", "Count"],
+            dtype={"Id": str},
+        )
     except:
-        empty_seed = np.ndarray((params['T'],len(patch_df)))
+        empty_seed = np.ndarray((params["T"], len(patch_df)))
         empty_seed.fill(0.0)
 
-        logger.info('Continuing without seeding')
+        logger.info("Continuing without seeding")
         return empty_seed
 
-    patch_idx = dict(zip(patch_df.id.values,range(len(patch_df))))
-    seed_df['Id_int'] = seed_df.Id.apply(lambda x: patch_idx[x])
-    seed_df = seed_df.pivot(index='Day',columns='Id_int',values='Count').fillna(0)
-    seed_df = seed_df.reindex(index=range(params['T']),columns = range(len(patch_df))).fillna(0)
+    patch_idx = dict(zip(patch_df.id.values, range(len(patch_df))))
+    seed_df["Id_int"] = seed_df.Id.apply(lambda x: patch_idx[x])
+    seed_df = seed_df.pivot(index="Day", columns="Id_int", values="Count").fillna(0)
+    seed_df = seed_df.reindex(
+        index=range(params["T"]), columns=range(len(patch_df))
+    ).fillna(0)
 
-    logger.info('Loaded seeding schedule')
+    logger.info("Loaded seeding schedule")
     return seed_df.values
 
-def load_vax(configs,params,patch_df):
+
+def load_vax(configs, params, patch_df):
     try:
-        vax_df = pd.read_csv(configs['VaxFile'],delimiter=' ',
-                    names=['Day','Id','Count'],dtype={'Id':str,'Count':int})
+        vax_df = pd.read_csv(
+            configs["VaxFile"],
+            delimiter=" ",
+            names=["Day", "Id", "Count"],
+            dtype={"Id": str, "Count": int},
+        )
     except:
-        empty_vax = np.ndarray((params['T'],len(patch_df)))
+        empty_vax = np.ndarray((params["T"], len(patch_df)))
         empty_vax.fill(0.0)
         return empty_vax
 
     try:
-        vax_delay = int(configs['VaxDelay'])
+        vax_delay = int(configs["VaxDelay"])
     except:
         vax_delay = 0
 
-    patch_idx = dict(zip(patch_df.id.values,range(len(patch_df))))
-    vax_df['Id_int'] = vax_df.Id.apply(lambda x: patch_idx[x])
-    vax_df['Delayed_Day'] = vax_df['Day'] + vax_delay
+    patch_idx = dict(zip(patch_df.id.values, range(len(patch_df))))
+    vax_df["Id_int"] = vax_df.Id.apply(lambda x: patch_idx[x])
+    vax_df["Delayed_Day"] = vax_df["Day"] + vax_delay
 
-    vax_df = vax_df.pivot(index='Delayed_Day',columns='Id_int',values='Count').fillna(0)
-    vax_df = vax_df.reindex(index=range(params['T']),columns = range(len(patch_df))).fillna(0)
+    vax_df = vax_df.pivot(index="Delayed_Day", columns="Id_int", values="Count").fillna(
+        0
+    )
+    vax_df = vax_df.reindex(
+        index=range(params["T"]), columns=range(len(patch_df))
+    ).fillna(0)
     return vax_df.values.astype(int)
 
-def load_Theta(configs, patch_df):
-    theta_df = pd.read_csv(configs['NetworkFile'],names=['src_Id','dest_Id','theta_index','flow'],
-                            delimiter=' ',dtype={'src_Id':str, 'dest_Id':str})
 
-    if (configs['NetworkType']=='Static') & (len(theta_df.theta_index.unique())!=1):
+def load_Theta(configs, patch_df):
+    theta_df = pd.read_csv(
+        configs["NetworkFile"],
+        names=["src_Id", "dest_Id", "theta_index", "flow"],
+        delimiter=" ",
+        dtype={"src_Id": str, "dest_Id": str},
+    )
+
+    if (configs["NetworkType"] == "Static") & (len(theta_df.theta_index.unique()) != 1):
         logger.info("Theta indices mismatch. Ensure NetworkType=Static.")
-    if (configs['NetworkType']=='Weekly') & (len(theta_df.theta_index.unique())!=53):
+    if (configs["NetworkType"] == "Weekly") & (
+        len(theta_df.theta_index.unique()) != 53
+    ):
         logger.info("Theta indices mismatch. Ensure NetworkType=Weekly.")
-    if (configs['NetworkType']=='Monthly') & (len(theta_df.theta_index.unique())!=12):
+    if (configs["NetworkType"] == "Monthly") & (
+        len(theta_df.theta_index.unique()) != 12
+    ):
         logger.info("Theta indices mismatch. Ensure NetworkType=Monthly.")
 
-
-    patch_idx = dict(zip(patch_df.id.values,range(len(patch_df))))
+    patch_idx = dict(zip(patch_df.id.values, range(len(patch_df))))
     try:
-        theta_df['src_Id_int'] = theta_df.src_Id.apply(lambda x: patch_idx[x])
-        theta_df['dest_Id_int'] = theta_df.dest_Id.apply(lambda x: patch_idx[x])
+        theta_df["src_Id_int"] = theta_df.src_Id.apply(lambda x: patch_idx[x])
+        theta_df["dest_Id_int"] = theta_df.dest_Id.apply(lambda x: patch_idx[x])
     except:
-        logger.info("Ignoring flow entries for missing patches. Ensure all patches listed in PatchFile.")
+        logger.info(
+            "Ignoring flow entries for missing patches. Ensure all patches listed in PatchFile."
+        )
 
     Theta_indices = theta_df.theta_index.unique()
-    Theta = np.ndarray((len(Theta_indices),len(patch_df),len(patch_df)))
+    Theta = np.ndarray((len(Theta_indices), len(patch_df), len(patch_df)))
 
     for k in Theta_indices:
-        theta_df_k = theta_df[theta_df.theta_index==k]
-        theta_df_k = theta_df_k.pivot(index='src_Id_int',columns='dest_Id_int',values='flow').fillna(0)
-        theta_df_k = theta_df_k.reindex(index=range(len(patch_df)),columns = range(len(patch_df))).fillna(0)
+        theta_df_k = theta_df[theta_df.theta_index == k]
+        theta_df_k = theta_df_k.pivot(
+            index="src_Id_int", columns="dest_Id_int", values="flow"
+        ).fillna(0)
+        theta_df_k = theta_df_k.reindex(
+            index=range(len(patch_df)), columns=range(len(patch_df))
+        ).fillna(0)
         Theta[int(k)] = theta_df_k.values
 
-    logger.info('Loaded temporal travel matrix')
+    logger.info("Loaded temporal travel matrix")
     return Theta
 
-def patchsim_step(State_Array,patch_df,configs,params,theta,seeds,vaxs,t,stoch):
-    S,E,I,R,V,new_inf = State_Array ## Aliases for the State Array
+
+def patchsim_step(State_Array, patch_df, configs, params, theta, seeds, vaxs, t, stoch):
+    S, E, I, R, V, new_inf = State_Array  ## Aliases for the State Array
 
     ## seeding for day t (seeding implies S->I)
-    actual_seed = np.minimum(seeds[t],S[t])
+    actual_seed = np.minimum(seeds[t], S[t])
     S[t] = S[t] - actual_seed
     I[t] = I[t] + actual_seed
 
     if stoch:
         ## vaccination for day t
-        max_SV = np.minimum(vaxs[t],S[t])
-        actual_SV = np.random.binomial(max_SV.astype(int),params['vaxeff'])
+        max_SV = np.minimum(vaxs[t], S[t])
+        actual_SV = np.random.binomial(max_SV.astype(int), params["vaxeff"])
         S[t] = S[t] - actual_SV
         V[t] = V[t] + actual_SV
 
         ## Computing force of infection
-        ## Modify this to do travel network sampling only once and use it for the entire simulation. 
+        ## Modify this to do travel network sampling only once and use it for the entire simulation.
         ## Or even skip network sampling altogether, and model only disease progression stochasticity
-        
+
         N = patch_df.pops.values
-        S_edge = np.concatenate([np.random.multinomial(S[t][x],theta[x]/(theta[x].sum()+10**-12)).reshape(1,len(N)) for x in range(len(N))],axis=0)
-        E_edge = np.concatenate([np.random.multinomial(E[t][x],theta[x]/(theta[x].sum()+10**-12)).reshape(1,len(N)) for x in range(len(N))],axis=0)
-        I_edge = np.concatenate([np.random.multinomial(I[t][x],theta[x]/(theta[x].sum()+10**-12)).reshape(1,len(N)) for x in range(len(N))],axis=0)
-        R_edge = np.concatenate([np.random.multinomial(R[t][x],theta[x]/(theta[x].sum()+10**-12)).reshape(1,len(N)) for x in range(len(N))],axis=0)
-        V_edge = np.concatenate([np.random.multinomial(V[t][x],theta[x]/(theta[x].sum()+10**-12)).reshape(1,len(N)) for x in range(len(N))],axis=0)
+        S_edge = np.concatenate(
+            [
+                np.random.multinomial(
+                    S[t][x], theta[x] / (theta[x].sum() + 10 ** -12)
+                ).reshape(1, len(N))
+                for x in range(len(N))
+            ],
+            axis=0,
+        )
+        E_edge = np.concatenate(
+            [
+                np.random.multinomial(
+                    E[t][x], theta[x] / (theta[x].sum() + 10 ** -12)
+                ).reshape(1, len(N))
+                for x in range(len(N))
+            ],
+            axis=0,
+        )
+        I_edge = np.concatenate(
+            [
+                np.random.multinomial(
+                    I[t][x], theta[x] / (theta[x].sum() + 10 ** -12)
+                ).reshape(1, len(N))
+                for x in range(len(N))
+            ],
+            axis=0,
+        )
+        R_edge = np.concatenate(
+            [
+                np.random.multinomial(
+                    R[t][x], theta[x] / (theta[x].sum() + 10 ** -12)
+                ).reshape(1, len(N))
+                for x in range(len(N))
+            ],
+            axis=0,
+        )
+        V_edge = np.concatenate(
+            [
+                np.random.multinomial(
+                    V[t][x], theta[x] / (theta[x].sum() + 10 ** -12)
+                ).reshape(1, len(N))
+                for x in range(len(N))
+            ],
+            axis=0,
+        )
         N_edge = S_edge + E_edge + I_edge + R_edge + V_edge
 
         N_eff = N_edge.sum(axis=0)
         I_eff = I_edge.sum(axis=0)
-        beta_j_eff = np.nan_to_num(params['beta'][:,t]*(I_eff/N_eff))
+        beta_j_eff = np.nan_to_num(params["beta"][:, t] * (I_eff / N_eff))
 
-        actual_SE = np.concatenate([np.random.binomial(S_edge[:,x],beta_j_eff[x]).reshape(len(N),1) for x in range(len(N))],axis=1).sum(axis=1)
-        actual_EI = np.random.binomial(E[t],params['alpha'])
-        actual_IR = np.random.binomial(I[t],params['gamma'])
-        actual_RS = np.random.binomial(R[t],params['delta'])
+        actual_SE = np.concatenate(
+            [
+                np.random.binomial(S_edge[:, x], beta_j_eff[x]).reshape(len(N), 1)
+                for x in range(len(N))
+            ],
+            axis=1,
+        ).sum(axis=1)
+        actual_EI = np.random.binomial(E[t], params["alpha"])
+        actual_IR = np.random.binomial(I[t], params["gamma"])
+        actual_RS = np.random.binomial(R[t], params["delta"])
 
         ### Update to include presymptomatic and asymptomatic terms
-        S[t+1] = S[t] - actual_SE + actual_RS
-        E[t+1] = E[t] + actual_SE - actual_EI
-        I[t+1] = I[t] + actual_EI - actual_IR
-        R[t+1] = R[t] + actual_IR - actual_RS
-        V[t+1] = V[t]
+        S[t + 1] = S[t] - actual_SE + actual_RS
+        E[t + 1] = E[t] + actual_SE - actual_EI
+        I[t + 1] = I[t] + actual_EI - actual_IR
+        R[t + 1] = R[t] + actual_IR - actual_RS
+        V[t + 1] = V[t]
 
     else:
         ## vaccination for day t
-        actual_vax = np.minimum(vaxs[t]*params['vaxeff'],S[t])
-        S[t] =  S[t] - actual_vax
+        actual_vax = np.minimum(vaxs[t] * params["vaxeff"], S[t])
+        S[t] = S[t] - actual_vax
         V[t] = V[t] + actual_vax
 
         N = patch_df.pops.values
 
         ## Computing force of infection
 
-        if configs['Model'] == 'Mobility':
+        if configs["Model"] == "Mobility":
             N_eff = theta.T.dot(N)
             I_eff = theta.T.dot(I[t])
             E_eff = theta.T.dot(E[t])
-            beta_j_eff = np.nan_to_num(np.multiply(np.divide(I_eff,N_eff),params['beta'][:,t]*((1-params['kappa'])*(1-params['symprob']) + params['symprob']))) ## force of infection from symp/asymptomatic individuals
-            E_beta_j_eff = np.nan_to_num(np.multiply(np.divide(E_eff,N_eff),params['beta'][:,t]*(1-params['epsilon']))) ##force of infection from presymptomatic individuals
-            inf_force = theta.dot(beta_j_eff+E_beta_j_eff)
+            beta_j_eff = np.nan_to_num(
+                np.multiply(
+                    np.divide(I_eff, N_eff),
+                    params["beta"][:, t]
+                    * (
+                        (1 - params["kappa"]) * (1 - params["symprob"])
+                        + params["symprob"]
+                    ),
+                )
+            )  ## force of infection from symp/asymptomatic individuals
+            E_beta_j_eff = np.nan_to_num(
+                np.multiply(
+                    np.divide(E_eff, N_eff),
+                    params["beta"][:, t] * (1 - params["epsilon"]),
+                )
+            )  ##force of infection from presymptomatic individuals
+            inf_force = theta.dot(beta_j_eff + E_beta_j_eff)
 
-
-        elif configs['Model'] == 'Force':
-            beta_j_eff = np.nan_to_num(np.multiply(np.divide(I[t],N),params['beta'][:,t]))
-            #print(beta_j_eff)
+        elif configs["Model"] == "Force":
+            beta_j_eff = np.nan_to_num(
+                np.multiply(np.divide(I[t], N), params["beta"][:, t])
+            )
+            # print(beta_j_eff)
             inf_force = theta.T.dot(beta_j_eff)
-            #print(inf_force)
-            
+            # print(inf_force)
+
         ## New exposures during day t
-        new_inf[t] = np.minimum(np.multiply(inf_force,S[t]),S[t]) ## Maximum number of new infections at time t is S[t]
-        #print(new_inf)
+        new_inf[t] = np.minimum(
+            np.multiply(inf_force, S[t]), S[t]
+        )  ## Maximum number of new infections at time t is S[t]
+        # print(new_inf)
         ### Update to include presymptomatic and asymptomatic terms
-        S[t+1] = S[t] - new_inf[t] + np.multiply(params['delta'],R[t])
-        E[t+1] = new_inf[t] + np.multiply(1 - params['alpha'],E[t])
-        I[t+1] = np.multiply(params['alpha'],E[t]) + np.multiply(1 - params['gamma'],I[t])
-        R[t+1] = np.multiply(params['gamma'],I[t]) + np.multiply(1 - params['delta'],R[t])
-        V[t+1] = V[t]
+        S[t + 1] = S[t] - new_inf[t] + np.multiply(params["delta"], R[t])
+        E[t + 1] = new_inf[t] + np.multiply(1 - params["alpha"], E[t])
+        I[t + 1] = np.multiply(params["alpha"], E[t]) + np.multiply(
+            1 - params["gamma"], I[t]
+        )
+        R[t + 1] = np.multiply(params["gamma"], I[t]) + np.multiply(
+            1 - params["delta"], R[t]
+        )
+        V[t + 1] = V[t]
 
 
-def epicurves_todf(configs,params,patch_df,State_Array):
-    S,E,I,R,V,new_inf = State_Array ## Aliases for the State Array
+def epicurves_todf(configs, params, patch_df, State_Array):
+    S, E, I, R, V, new_inf = State_Array  ## Aliases for the State Array
 
-    out_df = pd.DataFrame(index=patch_df.id.values,columns = range(int(configs['Duration'])),data=new_inf[:-1,:].T)
-    out_df = out_df*float(params['scaling'])
-    if configs['OutputFormat']=='Whole':
+    out_df = pd.DataFrame(
+        index=patch_df.id.values,
+        columns=range(int(configs["Duration"])),
+        data=new_inf[:-1, :].T,
+    )
+    out_df = out_df * float(params["scaling"])
+    if configs["OutputFormat"] == "Whole":
         out_df = out_df.round().astype(int)
 
     return out_df
 
-def write_epicurves(configs,params,patch_df,State_Array,write_epi,return_epi):
 
-    out_df = epicurves_todf(configs,params,patch_df,State_Array)
+def write_epicurves(configs, params, patch_df, State_Array, write_epi, return_epi):
 
-    if (write_epi==False)&(return_epi==False):
+    out_df = epicurves_todf(configs, params, patch_df, State_Array)
+
+    if (write_epi == False) & (return_epi == False):
         return out_df.sum().sum()
     else:
-        if write_epi==True:
-            out_df.to_csv(configs['OutputFile'],header=None,sep=' ')
+        if write_epi == True:
+            out_df.to_csv(configs["OutputFile"], header=None, sep=" ")
 
-        if return_epi==True:
+        if return_epi == True:
             return out_df
 
         return
 
-def run_disease_simulation(configs,patch_df=None,params=None,Theta=None,seeds=None,vaxs=None,return_epi=False,write_epi=False,return_full=False):
+
+def run_disease_simulation(
+    configs,
+    patch_df=None,
+    params=None,
+    Theta=None,
+    seeds=None,
+    vaxs=None,
+    return_epi=False,
+    write_epi=False,
+    return_full=False,
+):
     try:
-        handler = logging.FileHandler(configs['LogFile'], mode='w')
+        handler = logging.FileHandler(configs["LogFile"], mode="w")
         for hdlr in logger.handlers[:]:  # remove the existing file handlers
-            if isinstance(hdlr,logger.FileHander):
+            if isinstance(hdlr, logger.FileHander):
                 logger.removeHandler(hdlr)
 
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
         handler.setFormatter(formatter)
     except:
         handler = logging.NullHandler()
         logger.addHandler(handler)
 
-    logger.info('Starting PatchSim')
+    logger.info("Starting PatchSim")
     start = time.time()
 
-    if configs['Model'] not in ['Mobility','Force']:
-        logger.info('Invalid Model for PatchSim')
+    if configs["Model"] not in ["Mobility", "Force"]:
+        logger.info("Invalid Model for PatchSim")
         logger.removeHandler(handler)
         return
     else:
-        logger.info('Operating PatchSim under {} Model'.format(configs['Model']))
+        logger.info("Operating PatchSim under {} Model".format(configs["Model"]))
 
     if patch_df is None:
         patch_df = load_patch(configs)
 
     if params is None:
-        params = load_params(configs,patch_df)
+        params = load_params(configs, patch_df)
 
     if Theta is None:
         Theta = load_Theta(configs, patch_df)
 
     if seeds is None:
-        seeds = load_seed(configs,params,patch_df)
+        seeds = load_seed(configs, params, patch_df)
 
     if vaxs is None:
-        vaxs = load_vax(configs,params,patch_df)
+        vaxs = load_vax(configs, params, patch_df)
 
-    logger.info('Initializing simulation run...')
+    logger.info("Initializing simulation run...")
 
-    if 'RandomSeed' in configs.keys():
-        np.random.seed(int(configs['RandomSeed']))
+    if "RandomSeed" in configs.keys():
+        np.random.seed(int(configs["RandomSeed"]))
         stoch = True
-        logger.info('Found RandomSeed. Running in stochastic mode...')
+        logger.info("Found RandomSeed. Running in stochastic mode...")
     else:
         stoch = False
-        logger.info('No RandomSeed found. Running in deterministic mode...')
+        logger.info("No RandomSeed found. Running in deterministic mode...")
 
-    dim = 5+1 ##Number of states (SEIRV) + One for tracking new infections
+    dim = 5 + 1  ##Number of states (SEIRV) + One for tracking new infections
     if stoch:
-        State_Array = np.ndarray((dim,params['T']+1,len(patch_df))).astype(int)
+        State_Array = np.ndarray((dim, params["T"] + 1, len(patch_df))).astype(int)
     else:
-        State_Array = np.ndarray((dim,params['T']+1,len(patch_df)))
+        State_Array = np.ndarray((dim, params["T"] + 1, len(patch_df)))
 
     State_Array.fill(0)
-    S,E,I,R,V,new_inf = State_Array ## Aliases for the State Array
+    S, E, I, R, V, new_inf = State_Array  ## Aliases for the State Array
 
-    if configs['LoadState'] =='True':
-        State_Array[:,0,:] = np.load(configs['LoadFile'])
+    if configs["LoadState"] == "True":
+        State_Array[:, 0, :] = np.load(configs["LoadFile"])
     else:
-        S[0,:] = patch_df.pops.values
+        S[0, :] = patch_df.pops.values
 
-
-    ref = datetime.strptime('Jan 1 2017', '%b %d %Y') ##is a Sunday
-    for t in range(params['T']):
-        curr_date = ref + timedelta(days=t+int(configs['StartDate']))
+    ref = datetime.strptime("Jan 1 2017", "%b %d %Y")  ##is a Sunday
+    for t in range(params["T"]):
+        curr_date = ref + timedelta(days=t + int(configs["StartDate"]))
         curr_week = int(curr_date.strftime("%U"))
         curr_month = int(curr_date.strftime("%m"))
 
-        if configs['NetworkType']=='Static':
-            patchsim_step(State_Array,patch_df,configs,params,Theta[0],seeds,vaxs,t,stoch)
+        if configs["NetworkType"] == "Static":
+            patchsim_step(
+                State_Array, patch_df, configs, params, Theta[0], seeds, vaxs, t, stoch
+            )
 
-        if configs['NetworkType']=='Weekly':
-            patchsim_step(State_Array,patch_df,configs,params,Theta[curr_week-1],seeds,vaxs,t,stoch)
+        if configs["NetworkType"] == "Weekly":
+            patchsim_step(
+                State_Array,
+                patch_df,
+                configs,
+                params,
+                Theta[curr_week - 1],
+                seeds,
+                vaxs,
+                t,
+                stoch,
+            )
 
-        if configs['NetworkType']=='Monthly':
-            patchsim_step(State_Array,patch_df,configs,params,Theta[curr_month-1],seeds,vaxs,t,stoch)
+        if configs["NetworkType"] == "Monthly":
+            patchsim_step(
+                State_Array,
+                patch_df,
+                configs,
+                params,
+                Theta[curr_month - 1],
+                seeds,
+                vaxs,
+                t,
+                stoch,
+            )
 
-    if configs['SaveState'] == 'True':
-        logger.info('Saving StateArray to File')
-        np.save(configs['SaveFile'],State_Array[:,-1,:])
+    if configs["SaveState"] == "True":
+        logger.info("Saving StateArray to File")
+        np.save(configs["SaveFile"], State_Array[:, -1, :])
 
     elapsed = time.time() - start
-    logger.info('Simulation complete. Time elapsed: {} seconds.'.format(elapsed))
+    logger.info("Simulation complete. Time elapsed: {} seconds.".format(elapsed))
     logger.removeHandler(handler)
 
-#     if (return_full==True): ##Use for debugging
-#         return State_Array
-    return write_epicurves(configs,params,patch_df,State_Array,write_epi,return_epi)
+    #     if (return_full==True): ##Use for debugging
+    #         return State_Array
+    return write_epicurves(
+        configs, params, patch_df, State_Array, write_epi, return_epi
+    )
