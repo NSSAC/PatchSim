@@ -79,10 +79,8 @@ def load_patch(configs):
 
     Returns
     -------
-    pd.DataFrame
-        A pandas dataframe with following columns.
-        id : dtype=str
-        pops : dtype=int
+    DataFrame (names=(id, pops), dtypes=(str, int))
+        A dataframe containing populations of patches.
     """
     patch_df = pd.read_csv(
         configs["PatchFile"],
@@ -111,16 +109,15 @@ def load_param_file(configs):
     configs : dict
         The configuration dictionary.
         Must contain the "ParamFile" pointing to location of parameter file.
-    patch_df : pd.DataFrame
-        A pandas dataframe with following columns.
-        id : dtype=str
-        pops : dtype=int
+    patch_df : DataFrame
+        A dataframe containing populations of patches.
 
     Returns
     -------
-    pd.DataFrame
-         A pandas dataframe with one column per patch
+    DataFrame
+         A dataframe with one column per patch.
          The column names are IDs of the patches.
+         Each column contains the "beta" value of the patch over time.
     """
     param_df = pd.read_csv(
         configs["ParamFile"], delimiter=" ", dtype={0: str}, header=None
@@ -137,18 +134,18 @@ def load_params(configs, patch_df):
 
     Parameters
     ----------
-    configs : dict (str -> str)
+    configs : dict
         The configuration key value pairs.
-    patch_df : pd.DataFrame
-        A pandas dataframe with following columns.
-        id : dtype=str
-        pops : dtype=int
+    patch_df : DataFrame
+        A dataframe containing populations of patches.
 
     Returns
     -------
     dict (str -> float or ndarray)
         A dictionary of model parameters.
-        The "beta" parameter is a matrix (NumPatchesxNumTimesteps).
+        The "beta" parameter is a ndarray
+        with shape=(NumPatches x NumTimesteps)
+        and dtype=float.
     """
     params = {}
     params["T"] = int(configs["Duration"])
@@ -202,15 +199,15 @@ def load_seed(configs, params, patch_df):
         The configuration dictionary.
     params: dict (str -> float or ndarray)
         A dictionary of model parameters.
-    patch_df : pd.DataFrame
+    patch_df : DataFrame
         A pandas dataframe with following columns.
         id : dtype=str
         pops : dtype=int
 
     Returns
     -------
-    np.ndarray
-        A seeding schedule matrix (NumTimstepsxNumPatches)
+    ndarray
+        A seeding schedule matrix (NumTimsteps x NumPatches)
     """
     if "SeedFile" not in configs:
         logger.info("Continuing without seeding")
@@ -249,15 +246,15 @@ def load_vax(configs, params, patch_df):
         The configuration dictionary.
     params: dict (str -> float or ndarray)
         A dictionary of model parameters.
-    patch_df : pd.DataFrame
+    patch_df : DataFrame
         A pandas dataframe with following columns.
         id : dtype=str
         pops : dtype=int
 
     Returns
     -------
-    np.ndarray
-        A vaccination schedule matrix (NumTimstepsxNumPatches)
+    ndarray
+        A vaccination schedule matrix (NumTimsteps x NumPatches)
     """
     vax_mat = np.zeros((params["T"], len(patch_df)), dtype=int)
 
