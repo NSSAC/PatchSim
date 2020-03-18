@@ -200,14 +200,12 @@ def load_seed(configs, params, patch_df):
     params: dict (str -> float or ndarray)
         A dictionary of model parameters.
     patch_df : DataFrame
-        A pandas dataframe with following columns.
-        id : dtype=str
-        pops : dtype=int
+        A dataframe containing populations of patches.
 
     Returns
     -------
-    ndarray
-        A seeding schedule matrix (NumTimsteps x NumPatches)
+    ndarray shape=(NumTimsteps x NumPatches)
+        A seeding schedule matrix
     """
     if "SeedFile" not in configs:
         logger.info("Continuing without seeding")
@@ -222,7 +220,7 @@ def load_seed(configs, params, patch_df):
 
     seed_mat = np.zeros((params["T"], len(patch_df)))
     patch_idx = {id_: i for i, id_ in enumerate(patch_df["id"])}
-    for id_, day, count in zip(seed_df["Id"], seed_df["Day"], seed_df["Count"]):
+    for day, id_, count in seed_df.itertuples(index=False, name=None):
         idx = patch_idx[id_]
         seed_mat[day, idx] = count
 
@@ -247,13 +245,11 @@ def load_vax(configs, params, patch_df):
     params: dict (str -> float or ndarray)
         A dictionary of model parameters.
     patch_df : DataFrame
-        A pandas dataframe with following columns.
-        id : dtype=str
-        pops : dtype=int
+        A dataframe containing populations of patches.
 
     Returns
     -------
-    ndarray
+    ndarray shape=(NumTimsteps x NumPatches)
         A vaccination schedule matrix (NumTimsteps x NumPatches)
     """
     vax_mat = np.zeros((params["T"], len(patch_df)), dtype=int)
@@ -270,7 +266,7 @@ def load_vax(configs, params, patch_df):
     vax_delay = int(configs.get("VaxDelay", 0))
 
     patch_idx = {id_: i for i, id_ in enumerate(patch_df["id"])}
-    for id_, day, count in zip(vax_df["Id"], vax_df["Day"], vax_df["Count"]):
+    for day, id_, count in vax_df.itertuples(index=False, name=None):
         idx = patch_idx[id_]
         day = day + vax_delay
         vax_mat[day, idx] = count
@@ -279,6 +275,28 @@ def load_vax(configs, params, patch_df):
 
 
 def load_Theta(configs, patch_df):
+    """Load the patch connectivity network.
+
+    This function loads the dynamic network connectity file.
+    The following is an example of the network connectity file::
+
+        A A 0 1
+        B B 0 1
+        C C 0 1
+
+    Parameters
+    ----------
+    configs : dict
+        The configuration dictionary.
+        Must contain keys "NetworkFile" and "NetworkType".
+    patch_df : DataFrame
+        A dataframe containing populations of patches.
+
+    Returns
+    -------
+    ndarray shape=(NumThetaIndices x NumPatches x NumPatches)
+        The dynamic patch connectivity network
+    """
     theta_df = pd.read_csv(
         configs["NetworkFile"],
         names=["src_Id", "dest_Id", "theta_index", "flow"],
@@ -286,38 +304,32 @@ def load_Theta(configs, patch_df):
         dtype={"src_Id": str, "dest_Id": str},
     )
 
-    if (configs["NetworkType"] == "Static") & (len(theta_df.theta_index.unique()) != 1):
-        logger.info("Theta indices mismatch. Ensure NetworkType=Static.")
-    if (configs["NetworkType"] == "Weekly") & (
-        len(theta_df.theta_index.unique()) != 53
-    ):
-        logger.info("Theta indices mismatch. Ensure NetworkType=Weekly.")
-    if (configs["NetworkType"] == "Monthly") & (
-        len(theta_df.theta_index.unique()) != 12
-    ):
-        logger.info("Theta indices mismatch. Ensure NetworkType=Monthly.")
-
-    patch_idx = dict(zip(patch_df.id.values, range(len(patch_df))))
-    try:
-        theta_df["src_Id_int"] = theta_df.src_Id.apply(lambda x: patch_idx[x])
-        theta_df["dest_Id_int"] = theta_df.dest_Id.apply(lambda x: patch_idx[x])
-    except:
-        logger.info(
-            "Ignoring flow entries for missing patches. Ensure all patches listed in PatchFile."
-        )
+    if configs["NetworkType"] == "Static":
+        if not np.all(theta_df.theta_index == 0):
+            raise ValueError("Theta indices mismatch. Ensure NetworkType=Static.")
+    elif configs["NetworkType"] == "Weekly":
+        if not list(sorted(set(theta_df.theta_index))) == list(range(53)):
+            raise ValueError("Theta indices mismatch. Ensure NetworkType=Weekly.")
+    elif configs["NetworkType"] == "Monthly":
+        if not list(sorted(set(theta_df.theta_index))) == list(range(12)):
+            raise ValueError("Theta indices mismatch. Ensure NetworkType=Monthly.")
+    else:
+        raise ValueError("Unknown NetworkType=%s" % configs["NetworkType"])
 
     Theta_indices = theta_df.theta_index.unique()
-    Theta = np.ndarray((len(Theta_indices), len(patch_df), len(patch_df)))
-
-    for k in Theta_indices:
-        theta_df_k = theta_df[theta_df.theta_index == k]
-        theta_df_k = theta_df_k.pivot(
-            index="src_Id_int", columns="dest_Id_int", values="flow"
-        ).fillna(0)
-        theta_df_k = theta_df_k.reindex(
-            index=range(len(patch_df)), columns=range(len(patch_df))
-        ).fillna(0)
-        Theta[int(k)] = theta_df_k.values
+    Theta = np.zeros((len(Theta_indices), len(patch_df), len(patch_df)))
+    patch_idx = {id_: i for i, id_ in enumerate(patch_df["id"])}
+    for src_Id, dest_Id, theta_index, flow in theta_df.itertuples(
+        index=False, name=None
+    ):
+        try:
+            src_Idx = patch_idx[src_Id]
+            dest_Idx = patch_idx[dest_Id]
+            Theta[theta_index, src_Idx, dest_Idx] = flow
+        except KeyError:
+            logger.warning(
+                "Ignoring flow entries for missing patches. Ensure all patches listed in PatchFile."
+            )
 
     logger.info("Loaded temporal travel matrix")
     return Theta
