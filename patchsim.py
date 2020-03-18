@@ -234,34 +234,51 @@ def load_seed(configs, params, patch_df):
 
 
 def load_vax(configs, params, patch_df):
-    try:
-        vax_df = pd.read_csv(
-            configs["VaxFile"],
-            delimiter=" ",
-            names=["Day", "Id", "Count"],
-            dtype={"Id": str, "Count": int},
-        )
-    except:
-        empty_vax = np.ndarray((params["T"], len(patch_df)))
-        empty_vax.fill(0.0)
-        return empty_vax
+    """Load the vaccination schedule file.
 
-    try:
-        vax_delay = int(configs["VaxDelay"])
-    except:
-        vax_delay = 0
+    A vax file contains the vaccination schedule.
+    Following is an example of the contents of the vax file::
 
-    patch_idx = dict(zip(patch_df.id.values, range(len(patch_df))))
-    vax_df["Id_int"] = vax_df.Id.apply(lambda x: patch_idx[x])
-    vax_df["Delayed_Day"] = vax_df["Day"] + vax_delay
+        0 A 10
+        2 B 10
+        5 C 10
 
-    vax_df = vax_df.pivot(index="Delayed_Day", columns="Id_int", values="Count").fillna(
-        0
+    Parameters
+    ----------
+    configs : dict
+        The configuration dictionary.
+    params: dict (str -> float or ndarray)
+        A dictionary of model parameters.
+    patch_df : pd.DataFrame
+        A pandas dataframe with following columns.
+        id : dtype=str
+        pops : dtype=int
+
+    Returns
+    -------
+    np.ndarray
+        A vaccination schedule matrix (NumTimstepsxNumPatches)
+    """
+    vax_mat = np.zeros((params["T"], len(patch_df)), dtype=int)
+
+    if "VaxFile" not in configs:
+        return vax_mat
+
+    vax_df = pd.read_csv(
+        configs["VaxFile"],
+        delimiter=" ",
+        names=["Day", "Id", "Count"],
+        dtype={"Id": str, "Count": int},
     )
-    vax_df = vax_df.reindex(
-        index=range(params["T"]), columns=range(len(patch_df))
-    ).fillna(0)
-    return vax_df.values.astype(int)
+    vax_delay = int(configs.get("VaxDelay", 0))
+
+    patch_idx = {id_: i for i, id_ in enumerate(patch_df["id"])}
+    for id_, day, count in zip(vax_df["Id"], vax_df["Day"], vax_df["Count"]):
+        idx = patch_idx[id_]
+        day = day + vax_delay
+        vax_mat[day, idx] = count
+
+    return vax_mat
 
 
 def load_Theta(configs, patch_df):
