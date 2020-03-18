@@ -186,29 +186,51 @@ def load_params(configs, patch_df):
 
 
 def load_seed(configs, params, patch_df):
-    try:
-        seed_df = pd.read_csv(
-            configs["SeedFile"],
-            delimiter=" ",
-            names=["Day", "Id", "Count"],
-            dtype={"Id": str},
-        )
-    except:
-        empty_seed = np.ndarray((params["T"], len(patch_df)))
-        empty_seed.fill(0.0)
+    """Load the disease seeding schedule file.
 
+    A seed file contains the disease seeding schedule.
+    Following is an example of the contents of a seed file::
+
+        0 A 20
+        0 B 20
+        1 C 20
+        2 C 30
+
+    Parameters
+    ----------
+    configs : dict
+        The configuration dictionary.
+    params: dict (str -> float or ndarray)
+        A dictionary of model parameters.
+    patch_df : pd.DataFrame
+        A pandas dataframe with following columns.
+        id : dtype=str
+        pops : dtype=int
+
+    Returns
+    -------
+    np.ndarray
+        A seeding schedule matrix (NumTimstepsxNumPatches)
+    """
+    if "SeedFile" not in configs:
         logger.info("Continuing without seeding")
-        return empty_seed
+        return np.zeros((params["T"], len(patch_df)))
 
-    patch_idx = dict(zip(patch_df.id.values, range(len(patch_df))))
-    seed_df["Id_int"] = seed_df.Id.apply(lambda x: patch_idx[x])
-    seed_df = seed_df.pivot(index="Day", columns="Id_int", values="Count").fillna(0)
-    seed_df = seed_df.reindex(
-        index=range(params["T"]), columns=range(len(patch_df))
-    ).fillna(0)
+    seed_df = pd.read_csv(
+        configs["SeedFile"],
+        delimiter=" ",
+        names=["Day", "Id", "Count"],
+        dtype={"Id": str},
+    )
+
+    seed_mat = np.zeros((params["T"], len(patch_df)))
+    patch_idx = {id_: i for i, id_ in enumerate(patch_df["id"])}
+    for id_, day, count in zip(seed_df["Id"], seed_df["Day"], seed_df["Count"]):
+        idx = patch_idx[id_]
+        seed_mat[day, idx] = count
 
     logger.info("Loaded seeding schedule")
-    return seed_df.values
+    return seed_mat
 
 
 def load_vax(configs, params, patch_df):
