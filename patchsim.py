@@ -8,6 +8,7 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+
 def read_config(config_file):
     """Read configuration.
 
@@ -612,6 +613,26 @@ def write_epicurves(configs, params, patch_df, State_Array, write_epi, return_ep
         return out_df.sum().sum()
 
 
+def dummy_intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t):
+    """Run a dummy intervention step.
+
+    configs : dict
+        The configuration dictionary.
+    patch_df : dict
+        A dataframe containing populations of patches.
+    params : dict
+        A dictionary of model parameters.
+    Theta : ndarray shape=(NumThetaIndices x NumPatches x NumPatches)
+        The dynamic patch connectivity network
+    seeds : ndarray shape=(NumTimsteps x NumPatches)
+        A seeding schedule matrix
+    vaxs : ndarray shape=(NumTimsteps x NumPatches)
+        A vaccination schedule matrix (NumTimsteps x NumPatches)
+    t : int
+        The timestep that was just finished.
+    """
+
+
 def run_disease_simulation(
     configs,
     patch_df=None,
@@ -622,6 +643,7 @@ def run_disease_simulation(
     return_epi=False,
     write_epi=False,
     log_to_file=True,
+    intervene_step=None,
 ):
     """Run the disease simulation.
 
@@ -647,6 +669,10 @@ def run_disease_simulation(
     log_to_file : bool
         If true register a new logging handler to configs[LogFile]
         Also removes any other file handler previously registered.
+    intervene_step : function, optional
+        If intervene_step step is not None,
+        it is called after every step.
+        It is expected to have the same signature as dummy_intervene_step.
 
     Returns
     -------
@@ -717,6 +743,9 @@ def run_disease_simulation(
                 State_Array, patch_df, configs, params, Theta[0], seeds, vaxs, t, stoch
             )
 
+            if intervene_step is not None:
+                intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t)
+
     elif configs["NetworkType"] == "Weekly":
         ref_date = datetime.strptime("Jan 1 2017", "%b %d %Y")  # is a Sunday
         for t in range(params["T"]):
@@ -735,6 +764,9 @@ def run_disease_simulation(
                 stoch,
             )
 
+            if intervene_step is not None:
+                intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t)
+
     elif configs["NetworkType"] == "Monthly":
         ref_date = datetime.strptime("Jan 1 2017", "%b %d %Y")  # is a Sunday
         for t in range(params["T"]):
@@ -752,6 +784,9 @@ def run_disease_simulation(
                 t,
                 stoch,
             )
+
+            if intervene_step is not None:
+                intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t)
     else:
         raise ValueError("Unknown NetworkType=%s" % configs["NetworkType"])
 
