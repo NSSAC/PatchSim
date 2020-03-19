@@ -744,7 +744,7 @@ def run_disease_simulation(
             )
 
             if intervene_step is not None:
-                dummy_intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t)
+                intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t)
 
     elif configs["NetworkType"] == "Weekly":
         ref_date = datetime.strptime("Jan 1 2017", "%b %d %Y")  # is a Sunday
@@ -765,7 +765,7 @@ def run_disease_simulation(
             )
 
             if intervene_step is not None:
-                dummy_intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t)
+                intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t)
 
     elif configs["NetworkType"] == "Monthly":
         ref_date = datetime.strptime("Jan 1 2017", "%b %d %Y")  # is a Sunday
@@ -786,7 +786,7 @@ def run_disease_simulation(
             )
 
             if intervene_step is not None:
-                dummy_intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t)
+                intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t)
     else:
         raise ValueError("Unknown NetworkType=%s" % configs["NetworkType"])
 
