@@ -626,52 +626,74 @@ def run_disease_simulation(
     vaxs=None,
     return_epi=False,
     write_epi=False,
-    return_full=False,
+    log_to_file=True,
 ):
-    try:
-        handler = logging.FileHandler(configs["LogFile"], mode="w")
-        for hdlr in logger.handlers[:]:  # remove the existing file handlers
-            if isinstance(hdlr, logger.FileHander):
-                logger.removeHandler(hdlr)
+    """Run the disease simulation.
 
-        logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
+    Parameters
+    ----------
+    configs : dict
+        The configuration dictionary.
+    patch_df : dict, optional
+        A dataframe containing populations of patches.
+    params : dict, optional
+        A dictionary of model parameters.
+    Theta : ndarray shape=(NumThetaIndices x NumPatches x NumPatches), optional
+        The dynamic patch connectivity network
+    seeds : ndarray shape=(NumTimsteps x NumPatches), optional
+        A seeding schedule matrix
+    vaxs : ndarray shape=(NumTimsteps x NumPatches), optional
+        A vaccination schedule matrix (NumTimsteps x NumPatches)
+    write_epi : bool
+        If true write the epicurve to configs[OutputFile]
+    return_epi : bool
+        If true return the whole epicurve dataframe.
+        Otherwise return the total number of people infected.
+    log_to_file : bool
+        If true register a new logging handler to configs[LogFile]
+        Also removes any other file handler previously registered.
+
+    Returns
+    -------
+    DataFrame
+        A dataframe containing the new infections.
+        There is one row per patch.
+        There is one column per timestep.
+    """
+    if log_to_file:
+        handler = logging.FileHandler(configs["LogFile"], mode="a")
         formatter = logging.Formatter(
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
         handler.setFormatter(formatter)
-    except:
-        handler = logging.NullHandler()
+
+        # remove the existing file handlers
+        for hdlr in logger.handlers[:]:
+            if isinstance(hdlr, logging.FileHandler):
+                logger.removeHandler(hdlr)
+
         logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
 
     logger.info("Starting PatchSim")
     start = time.time()
 
-    if configs["Model"] not in ["Mobility", "Force"]:
-        logger.info("Invalid Model for PatchSim")
-        logger.removeHandler(handler)
-        return
-    else:
-        logger.info("Operating PatchSim under {} Model".format(configs["Model"]))
+    logger.info("Operating PatchSim under %s Model", configs["Model"])
 
     if patch_df is None:
         patch_df = load_patch(configs)
-
     if params is None:
         params = load_params(configs, patch_df)
-
     if Theta is None:
         Theta = load_Theta(configs, patch_df)
-
     if seeds is None:
         seeds = load_seed(configs, params, patch_df)
-
     if vaxs is None:
         vaxs = load_vax(configs, params, patch_df)
 
     logger.info("Initializing simulation run...")
 
-    if "RandomSeed" in configs.keys():
+    if "RandomSeed" in configs:
         np.random.seed(int(configs["RandomSeed"]))
         stoch = True
         logger.info("Found RandomSeed. Running in stochastic mode...")
@@ -679,32 +701,33 @@ def run_disease_simulation(
         stoch = False
         logger.info("No RandomSeed found. Running in deterministic mode...")
 
-    dim = 5 + 1  ##Number of states (SEIRV) + One for tracking new infections
+    # Number of states (SEIRV) + One for tracking new infections
+    dim = 5 + 1
+    shape = (dim, params["T"] + 1, len(patch_df))
     if stoch:
-        State_Array = np.ndarray((dim, params["T"] + 1, len(patch_df))).astype(int)
+        State_Array = np.zeros(shape, dtype=int)
     else:
-        State_Array = np.ndarray((dim, params["T"] + 1, len(patch_df)))
-
-    State_Array.fill(0)
-    S, E, I, R, V, new_inf = State_Array  ## Aliases for the State Array
+        State_Array = np.zeros(shape, dtype=float)
 
     if configs["LoadState"] == "True":
+        # Load all
         State_Array[:, 0, :] = np.load(configs["LoadFile"])
     else:
-        S[0, :] = patch_df.pops.values
+        # Load only the Succeptiables
+        State_Array[0, :, :] = patch_df.pops.to_numpy()
 
-    ref = datetime.strptime("Jan 1 2017", "%b %d %Y")  ##is a Sunday
-    for t in range(params["T"]):
-        curr_date = ref + timedelta(days=t + int(configs["StartDate"]))
-        curr_week = int(curr_date.strftime("%U"))
-        curr_month = int(curr_date.strftime("%m"))
-
-        if configs["NetworkType"] == "Static":
+    if configs["NetworkType"] == "Static":
+        for t in range(params["T"]):
             patchsim_step(
                 State_Array, patch_df, configs, params, Theta[0], seeds, vaxs, t, stoch
             )
 
-        if configs["NetworkType"] == "Weekly":
+    elif configs["NetworkType"] == "Weekly":
+        ref_date = datetime.strptime("Jan 1 2017", "%b %d %Y")  # is a Sunday
+        for t in range(params["T"]):
+            curr_date = ref_date + timedelta(days=t + int(configs["StartDate"]))
+            curr_week = int(curr_date.strftime("%U"))
+
             patchsim_step(
                 State_Array,
                 patch_df,
@@ -717,7 +740,12 @@ def run_disease_simulation(
                 stoch,
             )
 
-        if configs["NetworkType"] == "Monthly":
+    elif configs["NetworkType"] == "Monthly":
+        ref_date = datetime.strptime("Jan 1 2017", "%b %d %Y")  # is a Sunday
+        for t in range(params["T"]):
+            curr_date = ref_date + timedelta(days=t + int(configs["StartDate"]))
+            curr_month = int(curr_date.strftime("%m"))
+
             patchsim_step(
                 State_Array,
                 patch_df,
@@ -729,17 +757,16 @@ def run_disease_simulation(
                 t,
                 stoch,
             )
+    else:
+        raise ValueError("Unknown NetworkType=%s" % configs["NetworkType"])
 
     if configs["SaveState"] == "True":
         logger.info("Saving StateArray to File")
         np.save(configs["SaveFile"], State_Array[:, -1, :])
 
     elapsed = time.time() - start
-    logger.info("Simulation complete. Time elapsed: {} seconds.".format(elapsed))
-    logger.removeHandler(handler)
+    logger.info("Simulation complete. Time elapsed: %s seconds.", elapsed)
 
-    #     if (return_full==True): ##Use for debugging
-    #         return State_Array
     return write_epicurves(
         configs, params, patch_df, State_Array, write_epi, return_epi
     )
