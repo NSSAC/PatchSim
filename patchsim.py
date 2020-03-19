@@ -339,7 +339,7 @@ def do_patchsim_stoch_mobility_step(
     State_Array, patch_df, params, theta, seeds, vaxs, t
 ):
     """Do step of the stochastic (mobility) simulation."""
-    S, E, I, R, V, new_inf = State_Array  ## Aliases for the State Array
+    S, E, I, R, V, _ = State_Array  ## Aliases for the State Array
 
     ## seeding for day t (seeding implies S->I)
     actual_seed = np.minimum(seeds[t], S[t])
@@ -452,7 +452,9 @@ def do_patchsim_det_mobility_step(State_Array, patch_df, params, theta, seeds, v
     beta_j_eff = I_eff
     beta_j_eff = beta_j_eff / N_eff
     beta_j_eff = beta_j_eff * params["beta"][:, t]
-    beta_j_eff = beta_j_eff * ((1 - params["kappa"]) * (1 - params["symprob"]) + params["symprob"])
+    beta_j_eff = beta_j_eff * (
+        (1 - params["kappa"]) * (1 - params["symprob"]) + params["symprob"]
+    )
     beta_j_eff = np.nan_to_num(beta_j_eff)
 
     # Force of infection from presymptomatic individuals
@@ -518,50 +520,97 @@ def patchsim_step(State_Array, patch_df, configs, params, theta, seeds, vaxs, t,
     """Do step of the simulation."""
     if stoch:
         if configs["Model"] == "Mobility":
-            return do_patchsim_stoch_mobility_step(State_Array, patch_df, params, theta, seeds, vaxs, t)
+            return do_patchsim_stoch_mobility_step(
+                State_Array, patch_df, params, theta, seeds, vaxs, t
+            )
         else:
-            raise ValueError("Unknown Model %s for stochastic simulation" % configs["Model"])
+            raise ValueError(
+                "Unknown Model %s for stochastic simulation" % configs["Model"]
+            )
     else:
         if configs["Model"] == "Mobility":
             return do_patchsim_det_mobility_step(
-                    State_Array, patch_df, params, theta, seeds, vaxs, t
-                )
+                State_Array, patch_df, params, theta, seeds, vaxs, t
+            )
         elif configs["Model"] == "Force":
             return do_patchsim_det_force_step(
-                    State_Array, patch_df, params, theta, seeds, vaxs, t
+                State_Array, patch_df, params, theta, seeds, vaxs, t
             )
         else:
-            raise ValueError("Unknown Model %s for deterministic simulation" % configs["Model"])
+            raise ValueError(
+                "Unknown Model %s for deterministic simulation" % configs["Model"]
+            )
+
 
 def epicurves_todf(configs, params, patch_df, State_Array):
-    S, E, I, R, V, new_inf = State_Array  ## Aliases for the State Array
+    """Convert the epicurve (new infection over time) into a dataframe.
 
-    out_df = pd.DataFrame(
-        index=patch_df.id.values,
-        columns=range(int(configs["Duration"])),
-        data=new_inf[:-1, :].T,
-    )
-    out_df = out_df * float(params["scaling"])
+    Parameters
+    ----------
+    configs : dict
+        The configuration dictionary.
+    params : dict
+        A dictionary of model parameters.
+    patch_df : dict
+        A dataframe containing populations of patches.
+    State_Array : 5 tuple
+        A tuple of disease state information.
+
+    Returns
+    -------
+    DataFrame
+        A dataframe containing the new infections.
+        There is one row per patch.
+        There is one column per timestep.
+    """
+    new_inf = State_Array[-1]
+
+    data = new_inf[:-1, :].T
+    data = data * float(params["scaling"])
     if configs["OutputFormat"] == "Whole":
-        out_df = out_df.round().astype(int)
+        data = data.round().astype(int)
 
+    index = patch_df.id
+    columns = np.arange(int(configs["Duration"]))
+
+    out_df = pd.DataFrame(index=index, columns=columns, data=data)
     return out_df
 
 
 def write_epicurves(configs, params, patch_df, State_Array, write_epi, return_epi):
+    """Write the epicurve into the output file.
 
+    Parameters
+    ----------
+    configs : dict
+        The configuration dictionary.
+    params : dict
+        A dictionary of model parameters.
+    patch_df : dict
+        A dataframe containing populations of patches.
+    State_Array : 5 tuple
+        A tuple of disease state information.
+    write_epi : bool
+        If true write the epicurve to configs[OutputFile]
+    return_epi : bool
+        If true return the whole epicurve dataframe.
+        Otherwise return the total number of people infected.
+
+    Returns
+    -------
+    number or DataFrame
+        If return_epi is true return the whole epicurve dataframe.
+        Otherwise return the total number of people infected.
+    """
     out_df = epicurves_todf(configs, params, patch_df, State_Array)
 
-    if (write_epi == False) & (return_epi == False):
-        return out_df.sum().sum()
+    if write_epi:
+        out_df.to_csv(configs["OutputFile"], header=None, sep=" ")
+
+    if return_epi:
+        return out_df
     else:
-        if write_epi == True:
-            out_df.to_csv(configs["OutputFile"], header=None, sep=" ")
-
-        if return_epi == True:
-            return out_df
-
-        return
+        return out_df.sum().sum()
 
 
 def run_disease_simulation(
