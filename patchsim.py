@@ -1,17 +1,12 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-""" PatchSim v1.2
-Created and maintained by: Srini (srini@virginia.edu)
-Date last modified: 6 Aug 2019
-"""
-import numpy as np
-import pandas as pd
-import logging
+"""PatchSim: A system for doing metapopulation SEIR* models."""
 import time
+import logging
 from datetime import datetime, timedelta
 
-logger = logging.getLogger(__name__)
+import numpy as np
+import pandas as pd
 
+logger = logging.getLogger(__name__)
 
 def read_config(config_file):
     """Read configuration.
