@@ -339,6 +339,10 @@ def do_patchsim_stoch_mobility_step(
     State_Array, patch_df, params, theta, seeds, vaxs, t
 ):
     """Do step of the stochastic (mobility) simulation."""
+    # FIXME: This method doesn't work at all
+    # as populate new_inf
+    # which is what gets written out.
+
     S, E, I, R, V, _ = State_Array  ## Aliases for the State Array
 
     ## seeding for day t (seeding implies S->I)
