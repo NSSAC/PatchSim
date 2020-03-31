@@ -168,7 +168,7 @@ def load_params(configs, patch_df):
     params["scaling"] = float(configs.get("ScalingFactor", 1.0))
     params["vaxeff"] = float(configs.get("VaxEfficacy", 1.0))
     params["delta"] = float(configs.get("WaningRate", 0.0))
-    params["kappa"] = 1 - float(configs.get("AsymptomaticReduction", 0.0))
+    params["kappa"] = float(configs.get("AsymptomaticReduction", 1.0))
     params["symprob"] = float(configs.get("SymptomaticProbability", 1.0))
     params["epsilon"] = float(configs.get("PresymptomaticReduction", 1.0))
 
