@@ -339,7 +339,7 @@ def do_patchsim_stoch_mobility_step(
     # as populate new_inf
     # which is what gets written out.
 
-    S, E, I, R, V, _ = State_Array  ## Aliases for the State Array
+    S, E, I, R, V, new_inf = State_Array  ## Aliases for the State Array
 
     ## seeding for day t (seeding implies S->I)
     actual_seed = np.minimum(seeds[t], S[t])
@@ -352,79 +352,118 @@ def do_patchsim_stoch_mobility_step(
     S[t] = S[t] - actual_SV
     V[t] = V[t] + actual_SV
 
-    ## Computing force of infection
-    ## Modify this to do travel network sampling only once and use it for the entire simulation.
-    ## Or even skip network sampling altogether, and model only disease progression stochasticity
+    N = patch_df.pops.to_numpy()
 
-    N = patch_df.pops.values
-    S_edge = np.concatenate(
-        [
-            np.random.multinomial(
-                S[t][x], theta[x] / (theta[x].sum() + 10 ** -12)
-            ).reshape(1, len(N))
-            for x in range(len(N))
-        ],
-        axis=0,
-    )
-    E_edge = np.concatenate(
-        [
-            np.random.multinomial(
-                E[t][x], theta[x] / (theta[x].sum() + 10 ** -12)
-            ).reshape(1, len(N))
-            for x in range(len(N))
-        ],
-        axis=0,
-    )
-    I_edge = np.concatenate(
-        [
-            np.random.multinomial(
-                I[t][x], theta[x] / (theta[x].sum() + 10 ** -12)
-            ).reshape(1, len(N))
-            for x in range(len(N))
-        ],
-        axis=0,
-    )
-    R_edge = np.concatenate(
-        [
-            np.random.multinomial(
-                R[t][x], theta[x] / (theta[x].sum() + 10 ** -12)
-            ).reshape(1, len(N))
-            for x in range(len(N))
-        ],
-        axis=0,
-    )
-    V_edge = np.concatenate(
-        [
-            np.random.multinomial(
-                V[t][x], theta[x] / (theta[x].sum() + 10 ** -12)
-            ).reshape(1, len(N))
-            for x in range(len(N))
-        ],
-        axis=0,
-    )
-    N_edge = S_edge + E_edge + I_edge + R_edge + V_edge
+    # Effective population after movement step
+    N_eff = theta.T.dot(N)
+    I_eff = theta.T.dot(I[t])
+    E_eff = theta.T.dot(E[t])
 
-    N_eff = N_edge.sum(axis=0)
-    I_eff = I_edge.sum(axis=0)
-    beta_j_eff = np.nan_to_num(params["beta"][:, t] * (I_eff / N_eff))
+    # Force of infection from symp/asymptomatic individuals
+    beta_j_eff = I_eff
+    beta_j_eff = beta_j_eff / N_eff
+    beta_j_eff = beta_j_eff * params["beta"][:, t]
+    beta_j_eff = beta_j_eff * (
+        (1 - params["kappa"]) * (1 - params["symprob"]) + params["symprob"]
+    )
+    beta_j_eff = np.nan_to_num(beta_j_eff)
 
-    actual_SE = np.concatenate(
-        [
-            np.random.binomial(S_edge[:, x], beta_j_eff[x]).reshape(len(N), 1)
-            for x in range(len(N))
-        ],
-        axis=1,
-    ).sum(axis=1)
+    # Force of infection from presymptomatic individuals
+    E_beta_j_eff = E_eff
+    E_beta_j_eff = E_beta_j_eff / N_eff
+    E_beta_j_eff = E_beta_j_eff * params["beta"][:, t]
+    E_beta_j_eff = E_beta_j_eff * (1 - params["epsilon"])
+    E_beta_j_eff = np.nan_to_num(E_beta_j_eff)
+
+    # Infection force
+    inf_force = theta.dot(beta_j_eff + E_beta_j_eff)
+    
+    # New exposures during day t
+    actual_SE = np.random.binomial(S[t],inf_force)
     actual_EI = np.random.binomial(E[t], params["alpha"])
     actual_IR = np.random.binomial(I[t], params["gamma"])
     actual_RS = np.random.binomial(R[t], params["delta"])
-
-    ### Update to include presymptomatic and asymptomatic terms
+    
+    # Update to include presymptomatic and asymptomatic terms
     S[t + 1] = S[t] - actual_SE + actual_RS
     E[t + 1] = E[t] + actual_SE - actual_EI
     I[t + 1] = I[t] + actual_EI - actual_IR
     R[t + 1] = R[t] + actual_IR - actual_RS
     V[t + 1] = V[t]
+    new_inf[t] = actual_SE
+    
+    ## Earlier computation of force of infection included network sampling. 
+    ## Now only implementing only disease progression stochasticity
+
+#     N = patch_df.pops.values
+#     S_edge = np.concatenate(
+#         [
+#             np.random.multinomial(
+#                 S[t][x], theta[x] / (theta[x].sum() + 10 ** -12)
+#             ).reshape(1, len(N))
+#             for x in range(len(N))
+#         ],
+#         axis=0,
+#     )
+#     E_edge = np.concatenate(
+#         [
+#             np.random.multinomial(
+#                 E[t][x], theta[x] / (theta[x].sum() + 10 ** -12)
+#             ).reshape(1, len(N))
+#             for x in range(len(N))
+#         ],
+#         axis=0,
+#     )
+#     I_edge = np.concatenate(
+#         [
+#             np.random.multinomial(
+#                 I[t][x], theta[x] / (theta[x].sum() + 10 ** -12)
+#             ).reshape(1, len(N))
+#             for x in range(len(N))
+#         ],
+#         axis=0,
+#     )
+#     R_edge = np.concatenate(
+#         [
+#             np.random.multinomial(
+#                 R[t][x], theta[x] / (theta[x].sum() + 10 ** -12)
+#             ).reshape(1, len(N))
+#             for x in range(len(N))
+#         ],
+#         axis=0,
+#     )
+#     V_edge = np.concatenate(
+#         [
+#             np.random.multinomial(
+#                 V[t][x], theta[x] / (theta[x].sum() + 10 ** -12)
+#             ).reshape(1, len(N))
+#             for x in range(len(N))
+#         ],
+#         axis=0,
+#     )
+#     N_edge = S_edge + E_edge + I_edge + R_edge + V_edge
+
+#     N_eff = N_edge.sum(axis=0)
+#     I_eff = I_edge.sum(axis=0)
+#     beta_j_eff = np.nan_to_num(params["beta"][:, t] * (I_eff / N_eff))
+
+#     actual_SE = np.concatenate(
+#         [
+#             np.random.binomial(S_edge[:, x], beta_j_eff[x]).reshape(len(N), 1)
+#             for x in range(len(N))
+#         ],
+#         axis=1,
+#     ).sum(axis=1)
+#     actual_EI = np.random.binomial(E[t], params["alpha"])
+#     actual_IR = np.random.binomial(I[t], params["gamma"])
+#     actual_RS = np.random.binomial(R[t], params["delta"])
+
+#     ### Update to include presymptomatic and asymptomatic terms
+#     S[t + 1] = S[t] - actual_SE + actual_RS
+#     E[t + 1] = E[t] + actual_SE - actual_EI
+#     I[t + 1] = I[t] + actual_EI - actual_IR
+#     R[t + 1] = R[t] + actual_IR - actual_RS
+#     V[t + 1] = V[t]
 
 
 def do_patchsim_det_mobility_step(State_Array, patch_df, params, theta, seeds, vaxs, t):
@@ -443,7 +482,7 @@ def do_patchsim_det_mobility_step(State_Array, patch_df, params, theta, seeds, v
 
     N = patch_df.pops.to_numpy()
 
-    # Eeffective population after movement step
+    # Effective population after movement step
     N_eff = theta.T.dot(N)
     I_eff = theta.T.dot(I[t])
     E_eff = theta.T.dot(E[t])
