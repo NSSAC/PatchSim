@@ -377,13 +377,13 @@ def do_patchsim_stoch_mobility_step(
 
     # Infection force
     inf_force = theta.dot(beta_j_eff + E_beta_j_eff)
-    
+
     # New exposures during day t
     actual_SE = np.random.binomial(S[t],inf_force)
     actual_EI = np.random.binomial(E[t], params["alpha"])
     actual_IR = np.random.binomial(I[t], params["gamma"])
     actual_RS = np.random.binomial(R[t], params["delta"])
-    
+
     # Update to include presymptomatic and asymptomatic terms
     S[t + 1] = S[t] - actual_SE + actual_RS
     E[t + 1] = E[t] + actual_SE - actual_EI
@@ -391,8 +391,8 @@ def do_patchsim_stoch_mobility_step(
     R[t + 1] = R[t] + actual_IR - actual_RS
     V[t + 1] = V[t]
     new_inf[t] = actual_SE
-    
-    ## Earlier computation of force of infection included network sampling. 
+
+    ## Earlier computation of force of infection included network sampling.
     ## Now only implementing only disease progression stochasticity
 
 #     N = patch_df.pops.values
@@ -652,7 +652,7 @@ def write_epicurves(configs, params, patch_df, State_Array, write_epi, return_ep
         return out_df.sum().sum()
 
 
-def dummy_intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t):
+def dummy_intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t, State_Array=None):
     """Run a dummy intervention step.
 
     configs : dict
@@ -783,7 +783,7 @@ def run_disease_simulation(
             )
 
             if intervene_step is not None:
-                intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t)
+                intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t, State_Array)
 
     elif configs["NetworkType"] == "Weekly":
         ref_date = datetime.strptime("Jan 1 2017", "%b %d %Y")  # is a Sunday
@@ -804,7 +804,7 @@ def run_disease_simulation(
             )
 
             if intervene_step is not None:
-                intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t)
+                intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t, State_Array)
 
     elif configs["NetworkType"] == "Monthly":
         ref_date = datetime.strptime("Jan 1 2017", "%b %d %Y")  # is a Sunday
@@ -825,7 +825,7 @@ def run_disease_simulation(
             )
 
             if intervene_step is not None:
-                intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t)
+                intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t, State_Array)
     else:
         raise ValueError("Unknown NetworkType=%s" % configs["NetworkType"])
 
