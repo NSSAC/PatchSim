@@ -32,7 +32,7 @@ setup(
     long_description_content_type="text/markdown",
 
     # packages=[package_name],
-    py_modules = ["pathchsim"],
+    py_modules = ["patchsim"],
 
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
@@ -43,6 +43,6 @@ setup(
         "click",
     ],
 
-    url="http://github.com/nssac/pathchsim",
+    url="http://github.com/nssac/patchsim",
     classifiers=classifiers
 )
