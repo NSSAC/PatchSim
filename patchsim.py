@@ -215,6 +215,7 @@ def load_seed(configs, params, patch_df):
     )
 
     seed_mat = np.zeros((params["T"], len(patch_df)))
+    seed_df = seed_df[seed_df.Day<params["T"]] ### Skipping seeds after end of simulation
     patch_idx = {id_: i for i, id_ in enumerate(patch_df["id"])}
     for day, id_, count in seed_df.itertuples(index=False, name=None):
         idx = patch_idx[id_]
