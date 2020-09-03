@@ -262,7 +262,7 @@ def load_vax(configs, params, patch_df):
     )
     vax_delay = int(configs.get("VaxDelay", 0))
     
-    vax_df = vax_df[vax_df.Day<params["T"]] ### Skipping vaxs after end of simulation
+    vax_df = vax_df[vax_df.Day<params["T"] - vax_delay] ### Skipping vaxs which get applied after end of simulation
     patch_idx = {id_: i for i, id_ in enumerate(patch_df["id"])}
     for day, id_, count in vax_df.itertuples(index=False, name=None):
         idx = patch_idx[id_]
