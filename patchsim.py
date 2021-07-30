@@ -168,12 +168,13 @@ def load_params(configs, patch_df):
     params["scaling"] = float(configs.get("ScalingFactor", 1.0))
     params["vaxeff"] = float(configs.get("VaxEfficacy", 1.0))
     params["delta"] = float(configs.get("WaningRate", 0.0))
+    params["vaxdelta"] = float(configs.get("VaxWaningRate", 0.0))
     params["kappa"] = float(configs.get("AsymptomaticReduction", 1.0))
     params["symprob"] = float(configs.get("SymptomaticProbability", 1.0))
     params["epsilon"] = float(configs.get("PresymptomaticReduction", 1.0))
 
-    if params["delta"]:
-        logger.info("Found WaningRate. Running SEIRS model.")
+#     if params["delta"]:
+#         logger.info("Found WaningRate. Running SEIRS model.")
 
     return params
 
@@ -385,13 +386,14 @@ def do_patchsim_stoch_mobility_step(
     actual_EI = np.random.binomial(E[t], params["alpha"])
     actual_IR = np.random.binomial(I[t], params["gamma"])
     actual_RS = np.random.binomial(R[t], params["delta"])
+    actual_VS = np.random.binomial(V[t], params["vaxdelta"])
 
     # Update to include presymptomatic and asymptomatic terms
-    S[t + 1] = S[t] - actual_SE + actual_RS
+    S[t + 1] = S[t] - actual_SE + actual_RS + actual_VS
     E[t + 1] = E[t] + actual_SE - actual_EI
     I[t + 1] = I[t] + actual_EI - actual_IR
     R[t + 1] = R[t] + actual_IR - actual_RS
-    V[t + 1] = V[t]
+    V[t + 1] = V[t] - actual_VS
     new_inf[t] = actual_SE
 
     ## Earlier computation of force of infection included network sampling.
@@ -513,11 +515,11 @@ def do_patchsim_det_mobility_step(State_Array, patch_df, params, theta, seeds, v
     new_inf[t] = np.minimum(new_inf[t], S[t])
 
     # Update to include presymptomatic and asymptomatic terms
-    S[t + 1] = S[t] - new_inf[t] + params["delta"] * R[t]
+    S[t + 1] = S[t] - new_inf[t] + params["delta"] * R[t] + params["vaxdelta"] * V[t]
     E[t + 1] = new_inf[t] + (1 - params["alpha"]) * E[t]
     I[t + 1] = params["alpha"] * E[t] + (1 - params["gamma"]) * I[t]
     R[t + 1] = params["gamma"] * I[t] + (1 - params["delta"]) * R[t]
-    V[t + 1] = V[t]
+    V[t + 1] = (1 - params["vaxdelta"]) * V[t]
 
 
 def do_patchsim_det_force_step(State_Array, patch_df, params, theta, seeds, vaxs, t):
@@ -550,11 +552,11 @@ def do_patchsim_det_force_step(State_Array, patch_df, params, theta, seeds, vaxs
     new_inf[t] = np.minimum(new_inf[t], S[t])
 
     # Update to include presymptomatic and asymptomatic terms
-    S[t + 1] = S[t] - new_inf[t] + params["delta"] * R[t]
+    S[t + 1] = S[t] - new_inf[t] + params["delta"] * R[t] + params["vaxdelta"] * V[t]
     E[t + 1] = new_inf[t] + (1 - params["alpha"]) * E[t]
     I[t + 1] = params["alpha"] * E[t] + (1 - params["gamma"]) * I[t]
     R[t + 1] = params["gamma"] * I[t] + (1 - params["delta"]) * R[t]
-    V[t + 1] = V[t]
+    V[t + 1] = (1 - params["vaxdelta"]) * V[t]
 
 
 def patchsim_step(State_Array, patch_df, configs, params, theta, seeds, vaxs, t, stoch):
