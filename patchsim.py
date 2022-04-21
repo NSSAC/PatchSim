@@ -75,14 +75,14 @@ def load_patch(configs):
 
     Returns
     -------
-    DataFrame (names=(id, pops), dtypes=(str, int))
+    DataFrame (names=(id, pops), dtypes=(str, float))
         A dataframe containing populations of patches.
     """
     patch_df = pd.read_csv(
         configs["PatchFile"],
         names=["id", "pops"],
         delimiter=" ",
-        dtype={"id": str, "pops": int},
+        dtype={"id": str, "pops": float},
     )
     patch_df.sort_values("id", inplace=True)
 
