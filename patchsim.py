@@ -173,8 +173,8 @@ def load_params(configs, patch_df):
     params["symprob"] = float(configs.get("SymptomaticProbability", 1.0))
     params["epsilon"] = float(configs.get("PresymptomaticReduction", 1.0))
 
-#     if params["delta"]:
-#         logger.info("Found WaningRate. Running SEIRS model.")
+    #     if params["delta"]:
+    #         logger.info("Found WaningRate. Running SEIRS model.")
 
     return params
 
@@ -216,7 +216,9 @@ def load_seed(configs, params, patch_df):
     )
 
     seed_mat = np.zeros((params["T"], len(patch_df)))
-    seed_df = seed_df[seed_df.Day<params["T"]] ### Skipping seeds after end of simulation
+    seed_df = seed_df[
+        seed_df.Day < params["T"]
+    ]  ### Skipping seeds after end of simulation
     patch_idx = {id_: i for i, id_ in enumerate(patch_df["id"])}
     for day, id_, count in seed_df.itertuples(index=False, name=None):
         idx = patch_idx[id_]
@@ -262,8 +264,10 @@ def load_vax(configs, params, patch_df):
         dtype={"Id": str, "Count": int},
     )
     vax_delay = int(configs.get("VaxDelay", 0))
-    
-    vax_df = vax_df[vax_df.Day<params["T"] - vax_delay] ### Skipping vaxs which get applied after end of simulation
+
+    vax_df = vax_df[
+        vax_df.Day < params["T"] - vax_delay
+    ]  ### Skipping vaxs which get applied after end of simulation
     patch_idx = {id_: i for i, id_ in enumerate(patch_df["id"])}
     for day, id_, count in vax_df.itertuples(index=False, name=None):
         idx = patch_idx[id_]
@@ -382,7 +386,7 @@ def do_patchsim_stoch_mobility_step(
     inf_force = theta.dot(beta_j_eff + E_beta_j_eff)
 
     # New exposures during day t
-    actual_SE = np.random.binomial(S[t],inf_force)
+    actual_SE = np.random.binomial(S[t], inf_force)
     actual_EI = np.random.binomial(E[t], params["alpha"])
     actual_IR = np.random.binomial(I[t], params["gamma"])
     actual_RS = np.random.binomial(R[t], params["delta"])
@@ -398,6 +402,7 @@ def do_patchsim_stoch_mobility_step(
 
     ## Earlier computation of force of infection included network sampling.
     ## Now only implementing only disease progression stochasticity
+
 
 #     N = patch_df.pops.values
 #     S_edge = np.concatenate(
@@ -656,7 +661,9 @@ def write_epicurves(configs, params, patch_df, State_Array, write_epi, return_ep
         return out_df.sum().sum()
 
 
-def dummy_intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t, State_Array=None):
+def dummy_intervene_step(
+    configs, patch_df, params, Theta, seeds, vaxs, t, State_Array=None
+):
     """Run a dummy intervention step.
 
     configs : dict
@@ -787,7 +794,9 @@ def run_disease_simulation(
             )
 
             if intervene_step is not None:
-                intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t, State_Array)
+                intervene_step(
+                    configs, patch_df, params, Theta, seeds, vaxs, t, State_Array
+                )
 
     elif configs["NetworkType"] == "Weekly":
         ref_date = datetime.strptime("Jan 1 2017", "%b %d %Y")  # is a Sunday
@@ -808,7 +817,9 @@ def run_disease_simulation(
             )
 
             if intervene_step is not None:
-                intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t, State_Array)
+                intervene_step(
+                    configs, patch_df, params, Theta, seeds, vaxs, t, State_Array
+                )
 
     elif configs["NetworkType"] == "Monthly":
         ref_date = datetime.strptime("Jan 1 2017", "%b %d %Y")  # is a Sunday
@@ -829,7 +840,9 @@ def run_disease_simulation(
             )
 
             if intervene_step is not None:
-                intervene_step(configs, patch_df, params, Theta, seeds, vaxs, t, State_Array)
+                intervene_step(
+                    configs, patch_df, params, Theta, seeds, vaxs, t, State_Array
+                )
     else:
         raise ValueError("Unknown NetworkType=%s" % configs["NetworkType"])
 
