@@ -16,7 +16,7 @@ The description of the model and a software manual can be found inside the doc/ 
 
 ## Dependencies
 
-PatchSim is compatible with both Python 2 and 3. It requires numpy and pandas. 
+PatchSim is compatible with Python 3.5+. It requires numpy and pandas. 
 
 
 ## Testing
@@ -26,4 +26,13 @@ Please use the different test*.py scripts to test the different functionalities 
 
 ## US National simulation
 
-To test the US national simulation, extract the zip file test/US_county.zip and run "python test_det_US.py" from inside test/ folder. 
+To test the US national simulation, extract the zip file test/US_county.zip and run "python test_det_US.py" from inside test/ folder.
+
+
+## Using GPU (with CuPy) for core simulation
+Install CuPy version compatible with your CUDA version. For example: `pip install cupy-cuda11x`
+
+Before importing PatchSim set `PATCHSIM_USE_GPU` environment variable. For example:
+* shell: `export PATCHSIM_USE_GPU=1`, before running PatchSim script
+* jupyter notebook: `%env PATCHSIM_USE_GPU=1`, before PatchSim import
+* python script: `import os; os.environ['PATCHSIM_USE_GPU'] = '1'`, before PatchSim import

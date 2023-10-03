@@ -1,5 +1,6 @@
 """PatchSim: A system for doing metapopulation SEIR* models."""
 import time
+import os
 import logging
 from datetime import datetime, timedelta
 
@@ -7,6 +8,31 @@ import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+## Check if we should use CuPy or NumPy
+USE_CUPY = os.getenv("PATCHSIM_USE_GPU", "False").lower()
+if USE_CUPY in ("false", "f", "0", "no", "n"):
+    USE_CUPY = False
+elif USE_CUPY in ("true", "t", "1", "yes", "y"):
+    USE_CUPY = True
+else:
+    logger.warning(f"Invalid value `{USE_CUPY}` for PATCHSIM_USE_GPU. Not using GPU")
+    USE_CUPY = False
+
+# Use numpy as default
+cx = np
+if USE_CUPY:
+    try:
+        import cupy
+    except ImportError:
+        logger.exception("Unable to import CuPy. Not using GPU")
+        USE_CUPY = False
+    else:
+        # Use cupy
+        logger.info("Using CuPy. %s", cupy.__version__)
+        cx = cupy
+else:
+    logger.info("Using NumPy")
 
 
 def read_config(config_file):
@@ -339,7 +365,7 @@ def load_Theta(configs, patch_df):
 
 
 def do_patchsim_stoch_mobility_step(
-    State_Array, patch_df, params, theta, seeds, vaxs, t
+    State_Array, N, params, beta, theta, seeds, vaxs, t
 ):
     """Do step of the stochastic (mobility) simulation."""
     # FIXME: This method doesn't work at all
@@ -349,48 +375,46 @@ def do_patchsim_stoch_mobility_step(
     S, E, I, R, V, new_inf = State_Array  ## Aliases for the State Array
 
     ## seeding for day t (seeding implies S->I)
-    actual_seed = np.minimum(seeds[t], S[t])
+    actual_seed = cx.minimum(seeds[t], S[t])
     S[t] = S[t] - actual_seed
     I[t] = I[t] + actual_seed
 
     ## vaccination for day t
-    max_SV = np.minimum(vaxs[t], S[t])
-    actual_SV = np.random.binomial(max_SV.astype(int), params["vaxeff"])
+    max_SV = cx.minimum(vaxs[t], S[t])
+    actual_SV = cx.random.binomial(max_SV.astype(int), params["vaxeff"])
     S[t] = S[t] - actual_SV
     V[t] = V[t] + actual_SV
 
-    N = patch_df.pops.to_numpy()
-
     # Effective population after movement step
-    N_eff = theta.T.dot(N)
-    I_eff = theta.T.dot(I[t])
-    E_eff = theta.T.dot(E[t])
+    N_eff = theta.T @ N
+    I_eff = theta.T @ I[t]
+    E_eff = theta.T @ E[t]
 
     # Force of infection from symp/asymptomatic individuals
     beta_j_eff = I_eff
     beta_j_eff = beta_j_eff / N_eff
-    beta_j_eff = beta_j_eff * params["beta"][:, t]
+    beta_j_eff = beta_j_eff * beta[:, t]
     beta_j_eff = beta_j_eff * (
         (1 - params["kappa"]) * (1 - params["symprob"]) + params["symprob"]
     )
-    beta_j_eff = np.nan_to_num(beta_j_eff)
+    beta_j_eff = cx.nan_to_num(beta_j_eff)
 
     # Force of infection from presymptomatic individuals
     E_beta_j_eff = E_eff
     E_beta_j_eff = E_beta_j_eff / N_eff
-    E_beta_j_eff = E_beta_j_eff * params["beta"][:, t]
+    E_beta_j_eff = E_beta_j_eff * beta[:, t]
     E_beta_j_eff = E_beta_j_eff * (1 - params["epsilon"])
-    E_beta_j_eff = np.nan_to_num(E_beta_j_eff)
+    E_beta_j_eff = cx.nan_to_num(E_beta_j_eff)
 
     # Infection force
     inf_force = theta.dot(beta_j_eff + E_beta_j_eff)
 
     # New exposures during day t
-    actual_SE = np.random.binomial(S[t], inf_force)
-    actual_EI = np.random.binomial(E[t], params["alpha"])
-    actual_IR = np.random.binomial(I[t], params["gamma"])
-    actual_RS = np.random.binomial(R[t], params["delta"])
-    actual_VS = np.random.binomial(V[t], params["vaxdelta"])
+    actual_SE = cx.random.binomial(S[t], inf_force)
+    actual_EI = cx.random.binomial(E[t], params["alpha"])
+    actual_IR = cx.random.binomial(I[t], params["gamma"])
+    actual_RS = cx.random.binomial(R[t], params["delta"])
+    actual_VS = cx.random.binomial(V[t], params["vaxdelta"])
 
     # Update to include presymptomatic and asymptomatic terms
     S[t + 1] = S[t] - actual_SE + actual_RS + actual_VS
@@ -475,49 +499,48 @@ def do_patchsim_stoch_mobility_step(
 #     V[t + 1] = V[t]
 
 
-def do_patchsim_det_mobility_step(State_Array, patch_df, params, theta, seeds, vaxs, t):
+def do_patchsim_det_mobility_step(State_Array, N, params, beta, theta, seeds, vaxs, t):
     """Do step of the deterministic simulation."""
     S, E, I, R, V, new_inf = State_Array  ## Aliases for the State Array
 
     # seeding for day t (seeding implies S->I)
-    actual_seed = np.minimum(seeds[t], S[t])
+    actual_seed = cx.minimum(seeds[t], S[t])
     S[t] = S[t] - actual_seed
     I[t] = I[t] + actual_seed
 
     # vaccination for day t
-    actual_vax = np.minimum(vaxs[t] * params["vaxeff"], S[t])
+    actual_vax = cx.minimum(vaxs[t] * params["vaxeff"], S[t])
     S[t] = S[t] - actual_vax
     V[t] = V[t] + actual_vax
 
-    N = patch_df.pops.to_numpy()
-
     # Effective population after movement step
-    N_eff = theta.T.dot(N)
-    I_eff = theta.T.dot(I[t])
-    E_eff = theta.T.dot(E[t])
+    N_eff = theta.T @ N
+    I_eff = theta.T @ I[t]
+    E_eff = theta.T @ E[t]
 
     # Force of infection from symp/asymptomatic individuals
     beta_j_eff = I_eff
     beta_j_eff = beta_j_eff / N_eff
-    beta_j_eff = beta_j_eff * params["beta"][:, t]
+    beta_j_eff = beta_j_eff * beta[:, t]
     beta_j_eff = beta_j_eff * (
         (1 - params["kappa"]) * (1 - params["symprob"]) + params["symprob"]
     )
-    beta_j_eff = np.nan_to_num(beta_j_eff)
+    beta_j_eff = cx.nan_to_num(beta_j_eff)
 
     # Force of infection from presymptomatic individuals
     E_beta_j_eff = E_eff
     E_beta_j_eff = E_beta_j_eff / N_eff
-    E_beta_j_eff = E_beta_j_eff * params["beta"][:, t]
+    E_beta_j_eff = E_beta_j_eff * beta[:, t]
     E_beta_j_eff = E_beta_j_eff * (1 - params["epsilon"])
-    E_beta_j_eff = np.nan_to_num(E_beta_j_eff)
+    E_beta_j_eff = cx.nan_to_num(E_beta_j_eff)
 
     # Infection force
-    inf_force = theta.dot(beta_j_eff + E_beta_j_eff)
+    beta_sum_eff = beta_j_eff + E_beta_j_eff
+    inf_force = theta @ beta_sum_eff
 
     # New exposures during day t
     new_inf[t] = inf_force * S[t]
-    new_inf[t] = np.minimum(new_inf[t], S[t])
+    new_inf[t] = cx.minimum(new_inf[t], S[t])
 
     # Update to include presymptomatic and asymptomatic terms
     S[t + 1] = S[t] - new_inf[t] + params["delta"] * R[t] + params["vaxdelta"] * V[t]
@@ -527,34 +550,32 @@ def do_patchsim_det_mobility_step(State_Array, patch_df, params, theta, seeds, v
     V[t + 1] = (1 - params["vaxdelta"]) * V[t]
 
 
-def do_patchsim_det_force_step(State_Array, patch_df, params, theta, seeds, vaxs, t):
+def do_patchsim_det_force_step(State_Array, N, params, beta, theta, seeds, vaxs, t):
     """Do step of the deterministic simulation."""
     S, E, I, R, V, new_inf = State_Array  ## Aliases for the State Array
 
     # seeding for day t (seeding implies S->I)
-    actual_seed = np.minimum(seeds[t], S[t])
+    actual_seed = cx.minimum(seeds[t], S[t])
     S[t] = S[t] - actual_seed
     I[t] = I[t] + actual_seed
 
     # vaccination for day t
-    actual_vax = np.minimum(vaxs[t] * params["vaxeff"], S[t])
+    actual_vax = cx.minimum(vaxs[t] * params["vaxeff"], S[t])
     S[t] = S[t] - actual_vax
     V[t] = V[t] + actual_vax
-
-    N = patch_df.pops.to_numpy()
 
     # Effective beta
     beta_j_eff = I[t]
     beta_j_eff = beta_j_eff / N
-    beta_j_eff = beta_j_eff * params["beta"][:, t]
-    beta_j_eff = np.nan_to_num(beta_j_eff)
+    beta_j_eff = beta_j_eff * beta[:, t]
+    beta_j_eff = cx.nan_to_num(beta_j_eff)
 
     # Infection force
-    inf_force = theta.T.dot(beta_j_eff)
+    inf_force = theta.T @ beta_j_eff
 
     # New exposures during day t
     new_inf[t] = inf_force * S[t]
-    new_inf[t] = np.minimum(new_inf[t], S[t])
+    new_inf[t] = cx.minimum(new_inf[t], S[t])
 
     # Update to include presymptomatic and asymptomatic terms
     S[t + 1] = S[t] - new_inf[t] + params["delta"] * R[t] + params["vaxdelta"] * V[t]
@@ -564,12 +585,12 @@ def do_patchsim_det_force_step(State_Array, patch_df, params, theta, seeds, vaxs
     V[t + 1] = (1 - params["vaxdelta"]) * V[t]
 
 
-def patchsim_step(State_Array, patch_df, configs, params, theta, seeds, vaxs, t, stoch):
+def patchsim_step(State_Array, N, configs, params, beta, theta, seeds, vaxs, t, stoch):
     """Do step of the simulation."""
     if stoch:
         if configs["Model"] == "Mobility":
             return do_patchsim_stoch_mobility_step(
-                State_Array, patch_df, params, theta, seeds, vaxs, t
+                State_Array, N, params, beta, theta, seeds, vaxs, t
             )
         else:
             raise ValueError(
@@ -578,11 +599,11 @@ def patchsim_step(State_Array, patch_df, configs, params, theta, seeds, vaxs, t,
     else:
         if configs["Model"] == "Mobility":
             return do_patchsim_det_mobility_step(
-                State_Array, patch_df, params, theta, seeds, vaxs, t
+                State_Array, N, params, beta, theta, seeds, vaxs, t
             )
         elif configs["Model"] == "Force":
             return do_patchsim_det_force_step(
-                State_Array, patch_df, params, theta, seeds, vaxs, t
+                State_Array, N, params, beta, theta, seeds, vaxs, t
             )
         else:
             raise ValueError(
@@ -620,7 +641,9 @@ def epicurves_todf(configs, params, patch_df, State_Array):
 
     index = patch_df.id
     columns = np.arange(int(configs["Duration"]))
-
+    if USE_CUPY:
+        # We have cupy array, need to copy to cpu
+        data = data.get()
     out_df = pd.DataFrame(index=index, columns=columns, data=data)
     return out_df
 
@@ -761,7 +784,6 @@ def run_disease_simulation(
         seeds = load_seed(configs, params, patch_df)
     if vaxs is None:
         vaxs = load_vax(configs, params, patch_df)
-
     logger.info("Initializing simulation run...")
 
     if "RandomSeed" in configs:
@@ -786,11 +808,29 @@ def run_disease_simulation(
     else:
         # Load only the Succeptiables
         State_Array[0, :, :] = patch_df.pops.to_numpy()
+    N = patch_df.pops.to_numpy().astype(np.float32)
+    beta = params["beta"]
+    if USE_CUPY:
+        State_Array = cupy.asarray(State_Array)
+        N = cupy.asarray(N)
+        beta = cupy.asarray(beta)
+        seeds = cupy.asarray(seeds)
+        vaxs = cupy.asarray(vaxs)
+        Theta = cupy.asarray(Theta)
 
     if configs["NetworkType"] == "Static":
         for t in range(params["T"]):
             patchsim_step(
-                State_Array, patch_df, configs, params, Theta[0], seeds, vaxs, t, stoch
+                State_Array,
+                N,
+                configs,
+                params,
+                beta,
+                Theta[0],
+                seeds,
+                vaxs,
+                t,
+                stoch,
             )
 
             if intervene_step is not None:
@@ -806,9 +846,10 @@ def run_disease_simulation(
 
             patchsim_step(
                 State_Array,
-                patch_df,
+                N,
                 configs,
                 params,
+                beta,
                 Theta[curr_week - 1],
                 seeds,
                 vaxs,
@@ -829,9 +870,10 @@ def run_disease_simulation(
 
             patchsim_step(
                 State_Array,
-                patch_df,
+                N,
                 configs,
                 params,
+                beta,
                 Theta[curr_month - 1],
                 seeds,
                 vaxs,
@@ -852,7 +894,9 @@ def run_disease_simulation(
 
     elapsed = time.time() - start
     logger.info("Simulation complete. Time elapsed: %s seconds.", elapsed)
-
-    return write_epicurves(
-        configs, params, patch_df, State_Array, write_epi, return_epi
-    )
+    if not write_epi and not return_epi:
+        return 0
+    else:
+        return write_epicurves(
+            configs, params, patch_df, State_Array, write_epi, return_epi
+        )
