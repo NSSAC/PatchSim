@@ -16,7 +16,7 @@ The description of the model and a software manual can be found inside the doc/ 
 
 ## Dependencies
 
-PatchSim is compatible with both Python 3.5+. It requires numpy and pandas. 
+PatchSim is compatible with Python 3.5+. It requires numpy and pandas. 
 
 
 ## Testing

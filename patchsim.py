@@ -16,7 +16,7 @@ if USE_CUPY in ("false", "f", "0", "no", "n"):
 elif USE_CUPY in ("true", "t", "1", "yes", "y"):
     USE_CUPY = True
 else:
-    logger.warning(f"Invalid value `{value}` for PATCHSIM_USE_GPU. Not using GPU")
+    logger.warning(f"Invalid value `{USE_CUPY}` for PATCHSIM_USE_GPU. Not using GPU")
     USE_CUPY = False
 
 # Use numpy as default
