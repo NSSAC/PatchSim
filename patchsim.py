@@ -145,7 +145,8 @@ def load_param_file(configs):
         configs["ParamFile"], delimiter=" ", dtype={0: str}, header=None
     )
     param_df = param_df.set_index(0)
-    param_df = param_df.fillna(method="ffill", axis=1)
+    #param_df = param_df.fillna(method="ffill", axis=1)
+    param_df = param_df.ffill(axis=1)
     param_df = param_df.T
 
     return param_df
